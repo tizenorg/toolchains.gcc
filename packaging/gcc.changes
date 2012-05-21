@@ -1,0 +1,137 @@
+* Tue Aug 2 2011 Junfeng Dong <junfeng.dong@iintel.com> -4.5.3
+- Import 4.5.3 from SLP.
+
+* Sun Apr 24 08:02:35 UTC 2011 - Jan-Simon Möller <jsmoeller@linuxfoundation.org> - 1.0
+- Add baselibs.conf to src.rpm
+
+* Mon Jan 17 2011 Austin Zhang <austin.zhang@intel.com> - 4.5.1
+- Bugfixing: BMC#11667:C++ routine does not compile with arm tool chain
+
+* Mon Jan 10 2011 Carsten Munk <carsten@maemo.org> - 4.5.1
+* BMC#12147: Linaro patches fail to build udev
+
+* Sun Jan  9 2011 Carsten Munk <carsten@maemo.org> - 4.5.1
+- Untar patch and re-gzip Linaro patch, solves BMC#11498
+
+* Tue Jan  4 2011 Carsten Munk <carsten@maemo.org> - 4.5.1
+- Change from blank macro to %{nil} in crossextraconfig
+
+* Mon Jan  3 2011 Carsten Munk <carsten@maemo.org> - 4.5.1
+- Add armv7hl and armv7nhl cross support
+
+* Fri Dec 31 2010 Carsten Munk - 4.5.1
+- Disable Linaro patchset to allow for bootstrap.
+
+* Fri Dec 10 2010 Jan-Simon Möller <jsmoeller@linuxfoudnation.org> - 4.5.1
+  Fri Dec 10 2010 Austin Zhang <austin.zhang@intel.com> - 4.5.1
+- Added Linaro patchset based on GCC4.5.1 (BMC#10510)
+
+* Tue Dec 09 2010 Austin Zhang <austin.zhang@intel.com> - 4.5.1
+- Update to 4.5.1 (BMC#FEA10510):Need to update gcc to 4.5.1 with 
+  linaro patchset for hardfp support 
+- Change format to tar.gz for SDK convenience
+- Fix BMC#9053:libssp.so.0 should be in libgcc
+- Fix BMC#9601:support for __ARM_PCS predefined symbol in gcc 4.5.x is needed
+- Fix BMC#10337,10339:Error when installing gdb with --excludedocs in .ks
+- Clean-up obsoleted content
+
+* Fri Oct 15 11:26:37 UTC 2010 - jsmoeller@linuxfoundation.org - 4.5.1
+- Merged/fixed devel:toolchain with devel:base
+
+* Tue Oct 14 2010 Austin Zhang <austin.zhang@intel.com> - 4.5.0
+- Applied 4.5.0 branch patch for fixing PR#45112 (BMC#8034)
+
+* Sat Sep 25 2010 Roger Wang <roger.wang@intel.com> - 4.5.0
+- Applied 4.5.0 branch patch for fixing PR#43972 (BMC#7281)
+
+* Wed Sep 15 2010 Jan-Simon Möller <jsmoeller@linuxfoudnation.org> - 4.5.1
+- Harden cross-gcc migration.
+
+* Tue Aug 31 2010 Austin Zhang <austin.zhang@intel.com> - 4.5.1
+- 4.5.1 master
+
+* Mon Aug 09 2010 Austin Zhang <austin.zhang@intel.com> - 4.5.0
+- Changed some files packing to correct sub-packages.
+- Added ssp support for ARM port.
+
+* Mon Aug 09 2010 Jan-Simon Möller <jsmoeller@linuxfoundation.org> - 4.5.0
+- Fix dependency issue gcc vs. cross-gcc
+
+* Thu Aug 05 2010 Jan-Simon Möller <jsmoeller@linuxfoundation.org> - 4.5.0
+- Fix build on ARM with workaround for ggc+qemu oom issue and 
+- disable generation of precompiled headers for now on ARM.
+  Follow-up on BMC#3936.
+
+* Tue Jul 20 2010 Austin Zhang <austin.zhang@intel.com> - 4.5.0
+- Applied ARM hotfix for fixing byteswap issue from REV in ARMv5+
+  PR#43698 (BMC#3936)
+- Add missing dependency to fix BMC#4046
+
+* Tue Jul 08 2010 Austin Zhang <austin.zhang@intel.com> - 4.5.0
+- Applied 4.5.0 mainline branch patch for fixing PR#43572(PR#43904)
+- Added missing symbolic link
+
+* Tue Jun 29 2010 Austin Zhang <austin.zhang@intel.com> - 4.5.0
+- Fixed packing issue of symbolic link of libgcc_s.so
+- Fixed gcc45-use-atom arch string
+
+* Mon Jun 28 2010 Jan-Simon Möller <jsmoeller@łinuxfoundation.org> - 4.5.0
+- Added aaa_README.PACKAGER
+- Added precheckin.sh
+- Added cross-* conditionals to main gcc.spec
+- Added cross-* files
+- Added gcc44-ARM-boehm-gc-stack-qemu.patch (make qemu-arm happy)
+
+* Mon May 24 2010 Austin Zhang <austin.zhang@intel.com> - 4.5.0
+- Added rpmlintrc to suppress wanring/error.
+- Added multilib support explicitly
+
+* Mon Apr 19 2010 Austin Zhang <austin.zhang@intel.com> - 4.5.0
+- Gcc-4.5.0, the first official version with atom support inside
+- Added MPC support
+- Enable LTO
+- Remove protoize feature
+- Removed obsoleted stuffs
+
+* Thu Mar 25 2010 Anas Nashif <anas.nashif@intel.com> - 4.4.2
+- Spec cleanup
+- Do not provide .so files
+
+* Fri Mar 05 2010 Austin Zhang <austin.zhang@intel.com> - 4.4.2
+- Enable arm build
+- Add MeeGo bugzilla
+
+* Mon Feb 22 2010 Austin Zhang <austin.zhang@intel.com> - 4.4.2
+- Enable ppl/cloog support
+- Use release name : MeeGo.
+
+* Mon Jan 11 2010 Austin Zhang <austin.zhang@intel.com> - 4.4.2
+- Use release name : Moblin.
+
+* Fri Nov 27 2009 Austin Zhang <austin.zhang@intel.com> - 4.4.2
+- Updated to 4.4.2.
+- Removed obseleted stuffs and non IA related patches.
+
+* Thu Nov 26 2009 Arjan van de Ven <arjan@linux.intel.com> - 4.4.1
+- default to atom tuning
+
+* Thu Oct 16 2009 Austin Zhang <austin.zhang@intel.com> - 4.4.1
+- Add 'provides: gcc-fortran' for compatibility (MB#6798)
+
+* Thu Sep 16 2009 Austin Zhang <austin.zhang@intel.com> - 4.4.1
+- Updated to 20090911 snapshot
+- Added patches from fedora:
+	gcc44-powerpc-libgcc_s_so.patch
+	gcc44-pr41175*
+	gcc44-rh5*
+	gcc44-vta-cfgexpand-ptr-mode-pr41248.patch
+- Removed obsoleted patches
+
+* Thu Aug 26 2009 Austin Zhang <austin.zhang@intel.com> - 4.4.1
+- Fix bug 5649 (libstdc++ conflication with 'gcc update')
+
+* Sat Aug 22 2009 Anas Nashif <anas.nashif@intel.com> - 4.4.1
+- Update to 4.4.1
+
+* Tue Dec 23 2008 Anas Nashif <anas.nashif@intel.com> 4.3
+- Initial import into Moblin
