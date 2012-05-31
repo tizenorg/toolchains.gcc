@@ -140,6 +140,7 @@ Source100: gcc-rpmlintrc
 Source200: baselibs.conf
 Source300: precheckin.sh
 Source301: aaa_README.PACKAGER
+Source1001: packaging/cross-armv7l-gcc.manifest 
 
 BuildRequires: binutils >= 2.19.51.0.14
 BuildRequires: eglibc-devel >= 2.4.90-13
@@ -388,6 +389,7 @@ cp -a libstdc++-v3/config/cpu/i{4,3}86/atomicity.h
 LC_ALL=C sed -i -e 's/\xa0/ /' gcc/doc/options.texi
 
 %build
+cp %{SOURCE1001} .
 rm -fr obj-%{gcc_target_platform}
 mkdir obj-%{gcc_target_platform}
 cd obj-%{gcc_target_platform}
@@ -787,6 +789,7 @@ rm -rf %{buildroot}
 %postun -n libmudflap -p /sbin/ldconfig
 
 %files 
+%manifest cross-armv7l-gcc.manifest
 %defattr(-,root,root,-)
 %{_prefix}/bin/cc
 %{_prefix}/bin/c89
@@ -900,6 +903,7 @@ rm -rf %{buildroot}
 %doc gcc/README*  gcc/COPYING*
 
 %files -n cpp 
+%manifest cross-armv7l-gcc.manifest
 %defattr(-,root,root,-)
 /lib/cpp
 %{_prefix}/bin/cpp
@@ -910,6 +914,7 @@ rm -rf %{buildroot}
 %{_prefix}/libexec/gcc/%{gcc_target_platform}/%{gcc_version}/cc1
 
 %files -n libgcc
+%manifest cross-armv7l-gcc.manifest
 %defattr(-,root,root,-)
 /%{_lib}/libgcc_s-%{gcc_version}.so.1
 /%{_lib}/libgcc_s.*
@@ -923,6 +928,7 @@ rm -rf %{buildroot}
 %endif
 
 %files c++
+%manifest cross-armv7l-gcc.manifest
 %defattr(-,root,root,-)
 %ifnarch %{arm}
 %{_prefix}/bin/%{gcc_target_platform}-*++
@@ -949,6 +955,7 @@ rm -rf %{buildroot}
 %endif
 
 %files -n libstdc++
+%manifest cross-armv7l-gcc.manifest
 %defattr(-,root,root,-)
 %{_prefix}/%{_lib}/libstdc++.*
 %dir %{_datadir}/gdb
@@ -960,6 +967,7 @@ rm -rf %{buildroot}
 %{_prefix}/share/gcc-%{gcc_version}/python
 
 %files -n libstdc++-devel
+%manifest cross-armv7l-gcc.manifest
 %defattr(-,root,root,-)
 %dir %{_prefix}/include/c++
 %dir %{_prefix}/include/c++/%{gcc_version}
@@ -976,15 +984,18 @@ rm -rf %{buildroot}
 %endif
 
 %files -n libgomp
+%manifest cross-armv7l-gcc.manifest
 %defattr(-,root,root,-)
 %{_prefix}/%{_lib}/libgomp.*
 
 %files -n libmudflap
+%manifest cross-armv7l-gcc.manifest
 %defattr(-,root,root,-)
 %{_prefix}/%{_lib}/libmudflap.*
 %{_prefix}/%{_lib}/libmudflapth.*
 
 %files -n libmudflap-devel
+%manifest cross-armv7l-gcc.manifest
 %defattr(-,root,root,-)
 %dir %{_prefix}/lib/gcc
 %dir %{_prefix}/lib/gcc/%{gcc_target_platform}
@@ -1002,6 +1013,7 @@ rm -rf %{buildroot}
 # cross
 # \/\/\/
 %files
+%manifest cross-armv7l-gcc.manifest
 %defattr(-,root,root,-)
 %{_prefix}
 # /\/\/\
