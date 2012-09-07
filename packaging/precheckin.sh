@@ -42,7 +42,6 @@ cat >> baselibs.conf << EOF
   targettype ${l} requires "gcc"
   targettype ${l} requires "gcc-c++"
 
-
   targettype ${l} prefix /emul/ia32-linux
   targettype ${l} extension -arm
   targettype ${l} +/
@@ -58,26 +57,26 @@ cat >> baselibs.conf << EOF
   targettype ${l} post " echo \"GCCVER: \$GCCVER     GCCVER_NEW: \$GCCVER_NEW \" "
   targettype ${l} post " if test "\${GCCVER}" == "\${GCCVER_NEW}"; then"
   targettype ${l} post "  echo "GCC and GCC-accel versions match. Enabling cross-compiler." "
-  targettype ${l} post "  for bin in gcc g++ ; do "
+  targettype ${l} post "  for bin in c++ c89 c99 cpp g++ gcc gcov ; do "
   targettype ${l} post "   binary="/usr/bin/\${bin}" "
-  targettype ${l} post "   if test -e \${binary} -a ! -e \${binary}.orig-arm ; then"
-  targettype ${l} post "     mv \${binary} \${binary}.orig-arm && cp <prefix>\${binary} \${binary}"
-  targettype ${l} post "   else "
+  targettype ${l} post "   if test -L \${binary} -a -e \${binary}.orig-arm ; then"
   targettype ${l} post "     echo "\${binary} not installed or \${binary}.orig-arm already present !" "
+  targettype ${l} post "   else "
+  targettype ${l} post "     mv \${binary} \${binary}.orig-arm && cp <prefix>\${binary} \${binary}"
   targettype ${l} post "   fi "
   targettype ${l} post "  done "
 
-  targettype ${l} post "  for bin in cc1 cc1plus ; do "
+  targettype ${l} post "  for bin in cc1 cc1plus collect2 lto-wrapper lto1 ; do "
   targettype ${l} post "   binary="/usr/libexec/gcc/${l}-tizen-linux-gnueabi/\$GCCVER/\$bin" "
-  targettype ${l} post "   if test -e \${binary} -a ! -e \${binary}.orig-arm ; then"
-  targettype ${l} post "     mv \${binary} \${binary}.orig-arm && cp <prefix>/usr/libexec/gcc/${l}-tizen-linux-gnueabi/\$GCCVER_NEW/\${bin} \${binary}"
-  targettype ${l} post "   else "
+  targettype ${l} post "   if test -L \${binary} -a -e \${binary}.orig-arm ; then"
   targettype ${l} post "     echo "\${binary} not installed or \${binary}.orig-arm already present !" "
+  targettype ${l} post "   else "
+  targettype ${l} post "     mv \${binary} \${binary}.orig-arm && cp <prefix>/usr/libexec/gcc/${l}-tizen-linux-gnueabi/\$GCCVER_NEW/\${bin} \${binary}"
   targettype ${l} post "   fi "
   targettype ${l} post "  done "
   targettype ${l} post " else"
   targettype ${l} post "  echo "GCC and GCC-accel versions don't match. Rollback also binutils..." "
-  targettype ${l} post "  for bin in addr2line ar as c++filt gprov ld nm objcopy objdump ranlib readelf size strings strip ; do"  
+  targettype ${l} post "  for bin in addr2line ar as c++filt gprov ld ld.bfd nm objcopy objdump ranlib readelf size strings strip ; do"  
   targettype ${l} post "   binary="/usr/bin/\${bin}" "  
   targettype ${l} post "   if test -e \${binary}.orig-arm ; then"  
   targettype ${l} post "     rm \${binary} && mv \${binary}.orig-arm \${binary}"  
@@ -85,11 +84,14 @@ cat >> baselibs.conf << EOF
   targettype ${l} post "     echo "\${binary}.orig-arm not present !" "  
   targettype ${l} post "   fi "  
   targettype ${l} post "  done "  
+  targettype ${l} post "  rm -f /usr/libexec/gcc/${l}-tizen-linux-gnueabi/4.5.3/ld"
+  targettype ${l} post "  rm -f /usr/libexec/gcc/${l}-tizen-linux-gnueabi/4.5.3/ld.bfd"
+
   targettype ${l} post " fi"
 
   targettype ${l} preun " export GCCVER=\$(LANG=C gcc --version | head -1 | cut -d" " -f3) "
-  targettype ${l} preun " for i in gcc g++ ; do if test -e /usr/bin/\${i}.orig-arm ; then rm /usr/bin/\${i} ; mv /usr/bin/\${i}.orig-arm /usr/bin/\${i}; fi ; done "
-  targettype ${l} preun " for i in cc1 cc1plus ; do cd /usr/libexec/gcc/${l}-tizen-linux-gnueabi/\$GCCVER ; if test -e \${i}.orig-arm ; then rm \${i} ; mv \${i}.orig-arm \${i} ; fi ; done "
+  targettype ${l} preun " for i in c++ c89 c99 cpp g++ gcc gcov ; do if test -e /usr/bin/\${i}.orig-arm ; then rm /usr/bin/\${i} ; mv /usr/bin/\${i}.orig-arm /usr/bin/\${i}; fi ; done "
+  targettype ${l} preun " for i in cc1 cc1plus collect2 lto-wrapper lto1 ; do cd /usr/libexec/gcc/${l}-tizen-linux-gnueabi/\$GCCVER ; if test -e \${i}.orig-arm ; then rm \${i} ; mv \${i}.orig-arm \${i} ; fi ; done "
 
 
 EOF

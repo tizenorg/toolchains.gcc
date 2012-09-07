@@ -45,7 +45,7 @@ BuildRequires: cross-armv6l-kernel-headers cross-armv6l-binutils
 %if "%{name}" == "cross-armv7l-gcc"
 BuildRequires: cross-armv7l-eglibc cross-armv7l-eglibc-devel cross-armv7l-eglibc-headers
 BuildRequires: cross-armv7l-kernel-headers cross-armv7l-binutils
-%define crossextraconfig %{nil}
+%define crossextraconfig --with-float=softfp --with-fpu=vfpv3 --with-arch=armv7-a
 %endif
 %if "%{name}" == "cross-armv7hl-gcc"
 BuildRequires: cross-armv7hl-eglibc cross-armv7hl-eglibc-devel cross-armv7hl-eglibc-headers
@@ -71,7 +71,7 @@ BuildRequires: cross-armv6l-kernel-headers cross-armv6l-binutils
 %if "%{name}" == "cross-armv7l-gcc-accel"
 BuildRequires: cross-armv7l-eglibc cross-armv7l-eglibc-devel cross-armv7l-eglibc-headers
 BuildRequires: cross-armv7l-kernel-headers cross-armv7l-binutils
-%define crossextraconfig %{nil}
+%define crossextraconfig --with-float=softfp --with-fpu=vfpv3 --with-arch=armv7-a
 %endif
 %if "%{name}" == "cross-armv7hl-gcc-accel"
 BuildRequires: cross-armv7hl-eglibc cross-armv7hl-eglibc-devel cross-armv7hl-eglibc-headers
@@ -86,7 +86,7 @@ BuildRequires: cross-armv7nhl-kernel-headers cross-armv7nhl-binutils
 # single target atm.
 ExclusiveArch: %ix86
 #
-# special handling for ARM build acceleration
+# special handling for Tizen ARM build acceleration
 # cross-armv*-gcc-accel
 %if "%(echo %{name} | sed -e "s/cross-.*-gcc-\\(.*\\)/\\1/")" == "accel"
 # cross architecture
@@ -140,7 +140,6 @@ Source100: gcc-rpmlintrc
 Source200: baselibs.conf
 Source300: precheckin.sh
 Source301: aaa_README.PACKAGER
-Source1001: packaging/cross-armv5tel-gcc.manifest 
 
 BuildRequires: binutils >= 2.19.51.0.14
 BuildRequires: eglibc-devel >= 2.4.90-13
@@ -188,17 +187,19 @@ Patch20:gcc-arm-earlyclobbers.diff
 Patch21:libstdc++-arm-wno-abi.diff
 Patch22:arm-unbreak-eabi-armv4t.diff
 Patch23:gcc-multiarch.diff
-Patch24:config-ml.diff
+#Patch24:config-ml.diff
 Patch25:gcc-no-add-needed.diff
 Patch26:gcc-as-needed.diff
 Patch27:gcc-system-root.diff
 Patch28:armhf-triplet-backport.diff
 
-Patch39: gcc-4.5-build-id.patch
+#Patch39: gcc-4.5-build-id.patch
 Patch40: gcc-4.5.1-arm-stack-protect-libgcc.patch
 Patch41: libgcc_post_upgrade.c.arm.patch
 Patch42: fix-memory-exhausted.patch
 
+Patch100: incorrect-immediate-for-movt.diff
+Patch101: libgomp-ftls-global-dynamic.diff
 #We need -gnueabi indicator for ARM
 %ifnarch %{arm}
 %global _gnu %{nil}
@@ -368,17 +369,20 @@ This is one set of libraries which support 64bit multilib on top of
 %patch21 -p2
 %patch22 -p2
 %patch23 -p2
-%patch24 -p2
+#%patch24 -p2
 %patch25 -p2
-%patch26 -p2
+#%patch26 -p2
 %patch27 -p2
 %patch28 -p2
 
-%patch39 -p0
+#%patch39 -p0
 %patch40 -p1
 %ifarch %arm
 %patch42 -p1
 %endif
+
+%patch100 -p0
+%patch101 -p0
 
 echo '%{version}' >gcc/BASE-VER
 
@@ -389,7 +393,6 @@ cp -a libstdc++-v3/config/cpu/i{4,3}86/atomicity.h
 LC_ALL=C sed -i -e 's/\xa0/ /' gcc/doc/options.texi
 
 %build
-cp %{SOURCE1001} .
 rm -fr obj-%{gcc_target_platform}
 mkdir obj-%{gcc_target_platform}
 cd obj-%{gcc_target_platform}
@@ -789,7 +792,6 @@ rm -rf %{buildroot}
 %postun -n libmudflap -p /sbin/ldconfig
 
 %files 
-%manifest cross-armv5tel-gcc.manifest
 %defattr(-,root,root,-)
 %{_prefix}/bin/cc
 %{_prefix}/bin/c89
@@ -903,7 +905,6 @@ rm -rf %{buildroot}
 %doc gcc/README*  gcc/COPYING*
 
 %files -n cpp 
-%manifest cross-armv5tel-gcc.manifest
 %defattr(-,root,root,-)
 /lib/cpp
 %{_prefix}/bin/cpp
@@ -914,7 +915,6 @@ rm -rf %{buildroot}
 %{_prefix}/libexec/gcc/%{gcc_target_platform}/%{gcc_version}/cc1
 
 %files -n libgcc
-%manifest cross-armv5tel-gcc.manifest
 %defattr(-,root,root,-)
 /%{_lib}/libgcc_s-%{gcc_version}.so.1
 /%{_lib}/libgcc_s.*
@@ -928,7 +928,6 @@ rm -rf %{buildroot}
 %endif
 
 %files c++
-%manifest cross-armv5tel-gcc.manifest
 %defattr(-,root,root,-)
 %ifnarch %{arm}
 %{_prefix}/bin/%{gcc_target_platform}-*++
@@ -955,7 +954,6 @@ rm -rf %{buildroot}
 %endif
 
 %files -n libstdc++
-%manifest cross-armv5tel-gcc.manifest
 %defattr(-,root,root,-)
 %{_prefix}/%{_lib}/libstdc++.*
 %dir %{_datadir}/gdb
@@ -967,7 +965,6 @@ rm -rf %{buildroot}
 %{_prefix}/share/gcc-%{gcc_version}/python
 
 %files -n libstdc++-devel
-%manifest cross-armv5tel-gcc.manifest
 %defattr(-,root,root,-)
 %dir %{_prefix}/include/c++
 %dir %{_prefix}/include/c++/%{gcc_version}
@@ -984,18 +981,15 @@ rm -rf %{buildroot}
 %endif
 
 %files -n libgomp
-%manifest cross-armv5tel-gcc.manifest
 %defattr(-,root,root,-)
 %{_prefix}/%{_lib}/libgomp.*
 
 %files -n libmudflap
-%manifest cross-armv5tel-gcc.manifest
 %defattr(-,root,root,-)
 %{_prefix}/%{_lib}/libmudflap.*
 %{_prefix}/%{_lib}/libmudflapth.*
 
 %files -n libmudflap-devel
-%manifest cross-armv5tel-gcc.manifest
 %defattr(-,root,root,-)
 %dir %{_prefix}/lib/gcc
 %dir %{_prefix}/lib/gcc/%{gcc_target_platform}
@@ -1013,7 +1007,6 @@ rm -rf %{buildroot}
 # cross
 # \/\/\/
 %files
-%manifest cross-armv5tel-gcc.manifest
 %defattr(-,root,root,-)
 %{_prefix}
 # /\/\/\
