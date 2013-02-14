@@ -1,0 +1,13 @@
+# DP: On linux targets pass --as-needed by default to the linker.
+
+--- ./src/gcc/config/linux.h~	2010-11-12 18:51:36.221896517 +0100
++++ ./src/gcc/config/linux.h	2010-11-12 18:57:14.409395122 +0100
+@@ -89,7 +89,7 @@
+     } while (0)
+ 
+ #if defined(HAVE_LD_EH_FRAME_HDR)
+-#define LINK_EH_SPEC "--no-add-needed %{!static:--eh-frame-hdr} "
++#define LINK_EH_SPEC "--no-add-needed --as-needed %{!static:--eh-frame-hdr} "
+ #endif
+ 
+ /* Define this so we can compile MS code for use with WINE.  */

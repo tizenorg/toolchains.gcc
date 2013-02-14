@@ -1,0 +1,19 @@
+DP: Fix PR48325, support POST_INC/PRE_DEC for NEON struct modes
+DP: Author: Chung-Lin Tang <cltang@codesourcery.com>
+
+Index: gcc/config/arm/arm.c
+===================================================================
+--- a/src/gcc/config/arm/arm.c	(revision 171769)
++++ b/src/gcc/config/arm/arm.c	(working copy)
+@@ -9124,6 +9124,11 @@
+   if (GET_CODE (ind) == REG)
+     return arm_address_register_rtx_p (ind, 0);
+ 
++  /* vldm/vstm allows POST_INC (ia) and PRE_DEC (db).  */
++  if (GET_CODE (ind) == POST_INC
++      || GET_CODE (ind) == PRE_DEC)
++    return arm_address_register_rtx_p (XEXP (ind, 0), 0);
++
+   return FALSE;
+ }
+ 

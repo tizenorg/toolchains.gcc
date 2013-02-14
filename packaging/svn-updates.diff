@@ -1,0 +1,2250 @@
+# DP: updates from the 4.5 branch upto 20110519 (r173893).
+
+last_updated()
+{
+	cat > ${dir}LAST_UPDATED <<EOF
+Thu May 19 11:10:05 CEST 2011
+Thu May 19 09:10:05 UTC 2011 (revision 173893)
+EOF
+}
+
+svn diff svn://gcc.gnu.org/svn/gcc/tags/gcc_4_5_3_release svn://gcc.gnu.org/svn/gcc/branches/gcc-4_5-branch \
+	| sed -r 's,^--- (\S+)\t(\S+)(.*)$,--- a/src/\1\t\2,;s,^\+\+\+ (\S+)\t(\S+)(.*)$,+++ b/src/\1\t\2,' \
+	| awk '/^Index:.*\.(class|texi)/ {skip=1; next} /^Index:/ { skip=0 } skip==0'
+
+Index: libgomp/fortran.c
+===================================================================
+--- a/src/libgomp/fortran.c	(.../tags/gcc_4_5_3_release)
++++ b/src/libgomp/fortran.c	(.../branches/gcc-4_5-branch)
+@@ -1,4 +1,4 @@
+-/* Copyright (C) 2005, 2007, 2008, 2009 Free Software Foundation, Inc.
++/* Copyright (C) 2005, 2007, 2008, 2009, 2011 Free Software Foundation, Inc.
+    Contributed by Jakub Jelinek <jakub@redhat.com>.
+ 
+    This file is part of the GNU OpenMP Library (libgomp).
+@@ -27,6 +27,7 @@
+ #include "libgomp.h"
+ #include "libgomp_f.h"
+ #include <stdlib.h>
++#include <limits.h>
+ 
+ #ifdef HAVE_ATTRIBUTE_ALIAS
+ /* Use internal aliases if possible.  */
+@@ -244,6 +245,8 @@
+ omp_lock_symver (omp_test_nest_lock_)
+ #endif
+ 
++#define TO_INT(x) ((x) > INT_MIN ? (x) < INT_MAX ? (x) : INT_MAX : INT_MIN)
++
+ void
+ omp_set_dynamic_ (const int32_t *set)
+ {
+@@ -253,7 +256,7 @@
+ void
+ omp_set_dynamic_8_ (const int64_t *set)
+ {
+-  omp_set_dynamic (*set);
++  omp_set_dynamic (!!*set);
+ }
+ 
+ void
+@@ -265,7 +268,7 @@
+ void
+ omp_set_nested_8_ (const int64_t *set)
+ {
+-  omp_set_nested (*set);
++  omp_set_nested (!!*set);
+ }
+ 
+ void
+@@ -277,7 +280,7 @@
+ void
+ omp_set_num_threads_8_ (const int64_t *set)
+ {
+-  omp_set_num_threads (*set);
++  omp_set_num_threads (TO_INT (*set));
+ }
+ 
+ int32_t
+@@ -343,7 +346,7 @@
+ void
+ omp_set_schedule_8_ (const int32_t *kind, const int64_t *modifier)
+ {
+-  omp_set_schedule (*kind, *modifier);
++  omp_set_schedule (*kind, TO_INT (*modifier));
+ }
+ 
+ void
+@@ -381,7 +384,7 @@
+ void
+ omp_set_max_active_levels_8_ (const int64_t *levels)
+ {
+-  omp_set_max_active_levels (*levels);
++  omp_set_max_active_levels (TO_INT (*levels));
+ }
+ 
+ int32_t
+@@ -405,7 +408,7 @@
+ int32_t
+ omp_get_ancestor_thread_num_8_ (const int64_t *level)
+ {
+-  return omp_get_ancestor_thread_num (*level);
++  return omp_get_ancestor_thread_num (TO_INT (*level));
+ }
+ 
+ int32_t
+@@ -417,7 +420,7 @@
+ int32_t
+ omp_get_team_size_8_ (const int64_t *level)
+ {
+-  return omp_get_team_size (*level);
++  return omp_get_team_size (TO_INT (*level));
+ }
+ 
+ int32_t
+Index: libgomp/ChangeLog
+===================================================================
+--- a/src/libgomp/ChangeLog	(.../tags/gcc_4_5_3_release)
++++ b/src/libgomp/ChangeLog	(.../branches/gcc-4_5-branch)
+@@ -1,3 +1,15 @@
++2011-05-06  Jakub Jelinek  <jakub@redhat.com>
++
++	PR fortran/48894
++	* fortran.c: Include limits.h.
++	(TO_INT): Define.
++	(omp_set_dynamic_8_, omp_set_num_threads_8_): Use !!*set instead of
++	*set.
++	(omp_set_num_threads_8_, omp_set_schedule_8_,
++	omp_set_max_active_levels_8_, omp_get_ancestor_thread_num_8_,
++	omp_get_team_size_8_): Use TO_INT macro.
++	* testsuite/libgomp.fortran/pr48894.f90: New test.
++
+ 2011-04-28  Release Manager
+ 
+ 	* GCC 4.5.3 released.
+Index: libgomp/testsuite/libgomp.fortran/pr48894.f90
+===================================================================
+--- a/src/libgomp/testsuite/libgomp.fortran/pr48894.f90	(.../tags/gcc_4_5_3_release)
++++ b/src/libgomp/testsuite/libgomp.fortran/pr48894.f90	(.../branches/gcc-4_5-branch)
+@@ -0,0 +1,23 @@
++! PR fortran/48894
++! { dg-do run }
++! { dg-options "-fdefault-integer-8" }
++
++  use omp_lib
++  integer, parameter :: zero = 0
++  integer :: err
++  logical :: l
++  err = 0
++  !$omp parallel
++    !$omp parallel private (l)
++      l = omp_get_ancestor_thread_num (-HUGE (zero)) .ne. -1
++      l = l .or. (omp_get_ancestor_thread_num (HUGE (zero)) .ne. -1)
++      l = l .or. (omp_get_team_size (-HUGE (zero)) .ne. -1)
++      l = l .or. (omp_get_team_size (HUGE (zero)) .ne. -1)
++      if (l) then
++        !$omp atomic
++          err = err + 1
++      endif
++    !$omp end parallel
++  !$omp end parallel
++  if (err .ne. 0) call abort
++end
+Index: gcc/fwprop.c
+===================================================================
+--- a/src/gcc/fwprop.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/fwprop.c	(.../branches/gcc-4_5-branch)
+@@ -228,8 +228,11 @@
+ 
+   process_uses (df_get_artificial_uses (bb_index), DF_REF_AT_TOP);
+   process_defs (df_get_artificial_defs (bb_index), DF_REF_AT_TOP);
+-  df_simulate_initialize_forwards (bb, local_lr);
+ 
++  /* We don't call df_simulate_initialize_forwards, as it may overestimate
++     the live registers if there are unused artificial defs.  We prefer
++     liveness to be underestimated.  */
++
+   FOR_BB_INSNS (bb, insn)
+     if (INSN_P (insn))
+       {
+Index: gcc/DATESTAMP
+===================================================================
+--- a/src/gcc/DATESTAMP	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/DATESTAMP	(.../branches/gcc-4_5-branch)
+@@ -1 +1 @@
+-20110428
++20110519
+Index: gcc/tree-tailcall.c
+===================================================================
+--- a/src/gcc/tree-tailcall.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/tree-tailcall.c	(.../branches/gcc-4_5-branch)
+@@ -1007,6 +1007,14 @@
+ 					     integer_one_node);
+     }
+ 
++  if (a_acc || m_acc)
++    {
++      /* When the tail call elimination using accumulators is performed,
++	 statements adding the accumulated value are inserted at all exits.
++	 This turns all other tail calls to non-tail ones.  */
++      opt_tailcalls = false;
++    }
++
+   for (; tailcalls; tailcalls = next)
+     {
+       next = tailcalls->next;
+Index: gcc/final.c
+===================================================================
+--- a/src/gcc/final.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/final.c	(.../branches/gcc-4_5-branch)
+@@ -2241,6 +2241,11 @@
+ 	    location_t loc;
+ 	    expanded_location expanded;
+ 
++	    /* Make sure we flush any queued register saves in case this
++	       clobbers affected registers.  */
++	    if (dwarf2out_do_frame ())
++	      dwarf2out_frame_debug (insn, false);
++
+ 	    /* There's no telling what that did to the condition codes.  */
+ 	    CC_STATUS_INIT;
+ 
+Index: gcc/fold-const.c
+===================================================================
+--- a/src/gcc/fold-const.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/fold-const.c	(.../branches/gcc-4_5-branch)
+@@ -2784,8 +2784,6 @@
+ 
+     case VOID_TYPE:
+       tem = fold_ignored_result (arg);
+-      if (TREE_CODE (tem) == MODIFY_EXPR)
+-	goto fold_convert_exit;
+       return fold_build1_loc (loc, NOP_EXPR, type, tem);
+ 
+     default:
+Index: gcc/ChangeLog
+===================================================================
+--- a/src/gcc/ChangeLog	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/ChangeLog	(.../branches/gcc-4_5-branch)
+@@ -1,3 +1,186 @@
++2011-05-16  Uros Bizjak  <ubizjak@gmail.com>
++
++	* config/i386/i386.md (*movxf_internal): Disable CONST_DOUBLE
++	optimization for CM_MEDIUM and CM_LARGE code models.  Fix usage
++	of standard_80387_constant_p.
++	(*movxf_internal_nointeger): Ditto.
++	(*movdf_internal): Remove dead code-size optimization.
++	(*movdf_internal_rex64): Fix usage of standard_80387_constant_p.
++	(*movdf_internal_nointeger): Ditto.
++	(*movsf_internal): Ditto.
++	(floating point move splitters): Ditto.
++	* config/i386/constraints.md (G): Ditto.
++	* config/i386/i386.c (ix86_preferred_reload_class): Ditto.
++
++2011-05-11  Michael Meissner  <meissner@linux.vnet.ibm.com>
++
++	Backport from mainline
++	2011-05-10  Michael Meissner  <meissner@linux.vnet.ibm.com>
++
++	PR target/48857, 48495
++	* config/rs6000/rs6000.h (VSX_SCALAR_MODE): Delete.
++	(VSX_MODE): Ditto.
++	(VSX_MOVE_MODE): Ditto.
++	(ALTIVEC_OR_VSX_VECTOR_MODE): New macro, combine all Altivec and
++	VSX vector types.  Add V2DImode.
++	(HARD_REGNO_CALLER_SAVE_MODE): Use it instead of
++	ALTIVEC_VECTOR_MODE and VSX_VECTOR_MODE calls.
++	(MODES_TIEABLE_P): Ditto.
++
++	* config/rs6000/rs6000.c (rs6000_emit_move): Use
++	ALTIVEC_OR_VSX_MODE instead of ALTIVEC_VECTOR_MODE and
++	VSX_VECTOR_MODE.
++	(init_cumulative_args): Ditto.
++	(rs6000_function_arg_boundary): Ditto.
++	(rs6000_function_arg_advance_1): Ditto.
++	(rs6000_function_arg): Ditto.
++	(rs6000_function_ok_for_sibcall): Ditto.
++	(emit_frame_save): Ditto.
++	(rs6000_function_value): Ditto.
++	(rs6000_libcall_value): Ditto.
++
++2011-05-10  Jakub Jelinek  <jakub@redhat.com>
++
++	Backported from mainline
++	2011-05-07  Zdenek Dvorak  <ook@ucw.cz>
++
++	PR tree-optimization/48837
++	* tree-tailcall.c (tree_optimize_tail_calls_1): Do not mark tailcalls
++	when accumulator transformation is performed.
++
++2011-05-09  Eric Botcazou  <ebotcazou@adacore.com>
++
++	* var-tracking.c (find_mem_expr_in_1pdv): Fix thinko.
++	(dataflow_set_preserve_mem_locs): Likewise.
++
++2011-05-07  Alan Modra  <amodra@gmail.com>
++
++	PR target/48900
++	* config/rs6000/rs6000.c (rs6000_legitimize_tls_address): Use
++	const0_rtx as the arg to the dummy __tls_get_addr libcall.
++
++2011-05-05  Jason Merrill  <jason@redhat.com>
++
++	PR c++/40975
++	* tree-inline.c (copy_tree_r): Handle STATEMENT_LIST.
++
++2011-05-05  Julian Brown  <julian@codesourcery.com>
++
++	* config/arm/neon.md (vec_set<mode>_internal): Fix misplaced
++	parenthesis in D-register case.
++
++2011-05-05  Ira Rosen  <ira.rosen@linaro.org>
++
++	Backport from mainline:
++	2011-04-18  Ulrich Weigand  <ulrich.weigand@linaro.org>
++		    Ira Rosen  <ira.rosen@linaro.org>
++
++	PR target/48252
++	* config/arm/arm.c (neon_emit_pair_result_insn): Swap arguments
++	to match neon_vzip/vuzp/vtrn_internal.
++	* config/arm/neon.md (neon_vtrn<mode>_internal): Make both
++	outputs explicitly dependent on both inputs.
++	(neon_vzip<mode>_internal, neon_vuzp<mode>_internal): Likewise.
++
++2011-05-04  Uros Bizjak  <ubizjak@gmail.com>
++
++	Backport from mainline
++	2011-04-21  Uros Bizjak  <ubizjak@gmail.com>
++
++	PR target/48708
++	* config/i386/i386.c (ix86_expand_vector_set) <V2DImode>: Generate
++	vec_extract and vec_concat for non-SSE4_1 targets.
++
++2011-05-04  Uros Bizjak  <ubizjak@gmail.com>
++
++	* config/i386/i386.md (*movdi_internal_rex64) <TYPE_SSEMOV>:
++	Use %v prefix in insn mnemonic to handle TARGET_AVX.
++	(*movdi_internal): Use "maybe_vex" instead of "vex" in "prefix"
++	attribute calculation.
++	(*movdf_internal): Output AVX mnemonics.  Add "prefix" attribute.
++	* config/i386/sse.md (*sse2_storeq_rex64): Do not emit %v prefix
++	for mov{q} mnemonic.
++	(*vec_extractv2di_1_rex64_avx): Ditto.
++	(*vec_concatv2di_rex64_sse4_1): Use %vmovd for reg<->xmm moves.
++	(*vec_concatv2di_rex64_sse): Use movd for reg<->xmm moves.
++	* config/i386/mmx.md (*mov<mode>_internal_rex64): Ditto.
++
++2011-05-03  Uros Bizjak  <ubizjak@gmail.com>
++	    Jakub Jelinek  <jakub@redhat.com>
++
++	PR target/48774
++	* config/i386/i386.c (ix86_match_ccmode): For CC{A,C,O,S}mode
++	only succeed if req_mode is the same as set_mode.
++
++2011-05-03  Jakub Jelinek  <jakub@redhat.com>
++
++	Backport from mainline
++	2011-04-30  Jakub Jelinek  <jakub@redhat.com>
++
++	PR tree-optimization/48809
++	* tree-switch-conversion.c (build_arrays): Compute tidx in unsigned
++	type.
++	(gen_inbound_check): Don't compute index_expr - range_min in utype
++	again, instead reuse SSA_NAME initialized in build_arrays.
++	Remove two useless gsi_for_stmt calls.
++
++	2011-04-28  Jakub Jelinek  <jakub@redhat.com>
++
++	PR middle-end/48597
++	* final.c (final_scan_insn): Call dwarf2out_frame_debug even for
++	inline asm.
++
++	2011-04-27  Jakub Jelinek  <jakub@redhat.com>
++
++	PR c/48742
++	* c-typeck.c (build_binary_op): Don't wrap arguments if
++	int_operands is true.
++
++	2011-04-23  Jakub Jelinek  <jakub@redhat.com>
++
++	PR c/48685
++	* fold-const.c (fold_convert_loc): Add NOP_EXPR when casting
++	to VOID_TYPE even around MODIFY_EXPR.
++
++2011-05-02  Ulrich Weigand  <ulrich.weigand@linaro.org>
++
++	PR middle-end/43085
++	Backport from mainline:
++
++	2010-04-29  Bernd Schmidt  <bernds@codesourcery.com>
++
++	From Dominique d'Humieres <dominiq@lps.ens.fr>
++	PR bootstrap/43858
++	* ifcvt.c (dead_or_predicable): Use df_simulate_find_defs to compute
++	test_set.
++
++	2010-04-26  Bernd Schmidt  <bernds@codesourcery.com>
++
++	* df-problems.c (df_simulate_initialize_forwards): Set, don't clear,
++	bits for artificial defs at the top of the block.
++	* fwprop.c (single_def_use_enter_block): Don't call it.
++
++	2010-04-22  Bernd Schmidt  <bernds@codesourcery.com>
++
++	* ifcvt.c (dead_or_predicable): Use df_simulate_find_defs and
++	df_simulate_find_noclobber_defs as appropriate.  Keep track of an
++	extra set merge_set_noclobber, and use it to relax the final test
++	slightly.
++	* df.h (df_simulate_find_noclobber_defs): Declare.
++	* df-problems.c (df_simulate_find_defs): Don't ignore partial or
++	conditional defs.
++	(df_simulate_find_noclobber_defs): New function.
++
++2011-04-29  John David Anglin  <dave.anglin@nrc-cnrc.gc.ca>
++
++	PR target/48288
++	* config/pa/predicates.md (ior_operand): Delete predicate.
++	(cint_ior_operand, reg_or_cint_ior_operand): New predicates.
++	* config/pa/pa.md (iordi3): Use reg_or_cint_ior_operand predicate in
++	expander.  Use cint_ior_operand in unnamed insn.
++	(iorsi3): Likewise.
++	* config/pa/pa-protos.h (ior_operand): Delete declarations.
++
+ 2011-04-28  Release Manager
+ 
+ 	* GCC 4.5.3 released.
+Index: gcc/testsuite/gcc.c-torture/execute/960321-1.x
+===================================================================
+--- a/src/gcc/testsuite/gcc.c-torture/execute/960321-1.x	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/testsuite/gcc.c-torture/execute/960321-1.x	(.../branches/gcc-4_5-branch)
+@@ -1,15 +0,0 @@
+-# This test fails to link on 64-bit Solaris 2/x86 due to a Sun as bug.
+-if { [istarget "i?86-*-solaris2*"]
+-     && ! [check_effective_target_ilp32]
+-     && ! [check_effective_target_gas] } { 
+-    set torture_eval_before_compile {
+-        global compiler_conditional_xfail_data
+-        set compiler_conditional_xfail_data {
+-            "64-bit Sun as bug" \
+-                { "i?86-*-solaris2*" } \
+-                { "-O[1-3s]" } \
+-                { "" }
+-       }
+-    }
+-}
+-return 0
+Index: gcc/testsuite/gcc.c-torture/execute/pr48809.c
+===================================================================
+--- a/src/gcc/testsuite/gcc.c-torture/execute/pr48809.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/testsuite/gcc.c-torture/execute/pr48809.c	(.../branches/gcc-4_5-branch)
+@@ -0,0 +1,60 @@
++/* PR tree-optimization/48809 */
++
++extern void abort (void);
++
++int
++foo (signed char x)
++{
++  int y = 0;
++  switch (x)
++    {
++    case 0: y = 1; break;
++    case 1: y = 7; break;
++    case 2: y = 2; break;
++    case 3: y = 19; break;
++    case 4: y = 5; break;
++    case 5: y = 17; break;
++    case 6: y = 31; break;
++    case 7: y = 8; break;
++    case 8: y = 28; break;
++    case 9: y = 16; break;
++    case 10: y = 31; break;
++    case 11: y = 12; break;
++    case 12: y = 15; break;
++    case 13: y = 111; break;
++    case 14: y = 17; break;
++    case 15: y = 10; break;
++    case 16: y = 31; break;
++    case 17: y = 7; break;
++    case 18: y = 2; break;
++    case 19: y = 19; break;
++    case 20: y = 5; break;
++    case 21: y = 107; break;
++    case 22: y = 31; break;
++    case 23: y = 8; break;
++    case 24: y = 28; break;
++    case 25: y = 106; break;
++    case 26: y = 31; break;
++    case 27: y = 102; break;
++    case 28: y = 105; break;
++    case 29: y = 111; break;
++    case 30: y = 17; break;
++    case 31: y = 10; break;
++    case 32: y = 31; break;
++    case 98: y = 18; break;
++    case -62: y = 19; break;
++    }
++  return y;
++}
++
++int
++main ()
++{
++  if (foo (98) != 18 || foo (97) != 0 || foo (99) != 0)
++    abort ();
++  if (foo (-62) != 19 || foo (-63) != 0 || foo (-61) != 0)
++    abort ();
++  if (foo (28) != 105 || foo (27) != 102 || foo (29) != 111)
++    abort ();
++  return 0;
++}
+Index: gcc/testsuite/gcc.c-torture/compile/pr48742.c
+===================================================================
+--- a/src/gcc/testsuite/gcc.c-torture/compile/pr48742.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/testsuite/gcc.c-torture/compile/pr48742.c	(.../branches/gcc-4_5-branch)
+@@ -0,0 +1,15 @@
++/* PR c/48742 */
++
++void baz (int);
++
++int
++foo (void)
++{
++  return 1 / 0 > 0;
++}
++
++void
++bar (void)
++{
++  baz (1 <= 2 % (3 >> 1 > 5 / 6 == 3));
++}
+Index: gcc/testsuite/gcc.target/arm/neon-vset_lanes8.c
+===================================================================
+--- a/src/gcc/testsuite/gcc.target/arm/neon-vset_lanes8.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/testsuite/gcc.target/arm/neon-vset_lanes8.c	(.../branches/gcc-4_5-branch)
+@@ -0,0 +1,21 @@
++/* Test the `vset_lane_s8' ARM Neon intrinsic.  */
++
++/* { dg-do run } */
++/* { dg-require-effective-target arm_neon_hw } */
++/* { dg-options "-O0" } */
++/* { dg-add-options arm_neon } */
++
++#include "arm_neon.h"
++#include <stdlib.h>
++#include <string.h>
++
++int8x8_t x = { 1, 2, 3, 4, 5, 6, 7, 8 };
++int8x8_t y = { 1, 2, 3, 16, 5, 6, 7, 8 };
++
++int main (void)
++{
++  x = vset_lane_s8 (16, x, 3);
++  if (memcmp (&x, &y, sizeof (x)) != 0)
++    abort();
++  return 0;
++}
+Index: gcc/testsuite/gcc.target/arm/pr48252.c
+===================================================================
+--- a/src/gcc/testsuite/gcc.target/arm/pr48252.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/testsuite/gcc.target/arm/pr48252.c	(.../branches/gcc-4_5-branch)
+@@ -0,0 +1,31 @@
++/* { dg-do run } */
++/* { dg-require-effective-target arm_neon_hw } */
++/* { dg-options "-O2" } */
++/* { dg-add-options arm_neon } */
++
++#include "arm_neon.h"
++#include <stdlib.h>
++
++int main(void)
++{
++    uint8x8_t v1 = {1, 1, 1, 1, 1, 1, 1, 1};
++    uint8x8_t v2 = {2, 2, 2, 2, 2, 2, 2, 2};
++    uint8x8x2_t vd1, vd2;
++    union {uint8x8_t v; uint8_t buf[8];} d1, d2, d3, d4;
++    int i;
++
++    vd1 = vzip_u8(v1, vdup_n_u8(0));
++    vd2 = vzip_u8(v2, vdup_n_u8(0));
++
++    vst1_u8(d1.buf, vd1.val[0]);
++    vst1_u8(d2.buf, vd1.val[1]);
++    vst1_u8(d3.buf, vd2.val[0]);
++    vst1_u8(d4.buf, vd2.val[1]);
++
++    for (i = 0; i < 8; i++)
++      if ((i % 2 == 0 && d4.buf[i] != 2)
++          || (i % 2 == 1 && d4.buf[i] != 0))
++         abort ();
++
++    return 0;
++}
+Index: gcc/testsuite/gcc.target/powerpc/pr48857.c
+===================================================================
+--- a/src/gcc/testsuite/gcc.target/powerpc/pr48857.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/testsuite/gcc.target/powerpc/pr48857.c	(.../branches/gcc-4_5-branch)
+@@ -0,0 +1,25 @@
++/* { dg-do compile { target { powerpc*-*-* } } } */
++/* { dg-skip-if "" { powerpc*-*-darwin* } { "*" } { "" } } */
++/* { dg-require-effective-target powerpc_vsx_ok } */
++/* { dg-options "-O2 -mcpu=power7 -mabi=altivec" } */
++/* { dg-final { scan-assembler-times "lxvd2x" 1 } } */
++/* { dg-final { scan-assembler-times "stxvd2x" 1 } } */
++/* { dg-final { scan-assembler-not "ld" } } */
++/* { dg-final { scan-assembler-not "lwz" } } */
++/* { dg-final { scan-assembler-not "stw" } } */
++/* { dg-final { scan-assembler-not "addi" } } */
++
++typedef vector long long v2di_type;
++
++v2di_type
++return_v2di (v2di_type *ptr)
++{
++  return *ptr;		/* should generate lxvd2x 34,0,3.  */
++}
++
++void
++pass_v2di (v2di_type arg, v2di_type *ptr)
++{
++  *ptr = arg;		/* should generate stxvd2x 34,0,{3,5}.  */
++}
++
+Index: gcc/testsuite/gcc.target/i386/pr48708.c
+===================================================================
+--- a/src/gcc/testsuite/gcc.target/i386/pr48708.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/testsuite/gcc.target/i386/pr48708.c	(.../branches/gcc-4_5-branch)
+@@ -0,0 +1,15 @@
++/* { dg-do compile } */
++/* { dg-options "-O2 -msse2" } */
++
++#include <emmintrin.h>
++
++typedef long long T __attribute__((may_alias));
++struct S { __m128i d; };
++
++__m128i
++foo (long long *x, struct S *y, __m128i *z)
++{
++  struct S s = *y;
++  ((T *) &s.d)[0] = *x;
++  return _mm_cmpeq_epi16 (s.d, *z);
++}
+Index: gcc/testsuite/gcc.target/i386/sse2-init-v2di-2.c
+===================================================================
+--- a/src/gcc/testsuite/gcc.target/i386/sse2-init-v2di-2.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/testsuite/gcc.target/i386/sse2-init-v2di-2.c	(.../branches/gcc-4_5-branch)
+@@ -1,6 +1,6 @@
+ /* { dg-do compile } */
+ /* { dg-require-effective-target lp64 } */
+-/* { dg-options "-O2 -msse4 -march=core2" } */
++/* { dg-options "-O2 -msse4 -march=core2 -dp" } */
+ 
+ #include <emmintrin.h>
+ 
+@@ -10,4 +10,4 @@
+   return _mm_cvtsi64_si128 (b); 
+ }
+ 
+-/* { dg-final { scan-assembler "movq" } } */
++/* { dg-final { scan-assembler-times "\\*vec_concatv2di_rex64_sse4_1/3" 1 } } */
+Index: gcc/testsuite/gcc.dg/pr48774.c
+===================================================================
+--- a/src/gcc/testsuite/gcc.dg/pr48774.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/testsuite/gcc.dg/pr48774.c	(.../branches/gcc-4_5-branch)
+@@ -0,0 +1,38 @@
++/* PR target/48774 */
++/* { dg-do run } */
++/* { dg-options "-O2 -funroll-loops" } */
++
++extern void abort (void);
++unsigned long int s[24]
++  = { 12, ~1, 12, ~2, 12, ~4, 12, ~8, 12, ~16, 12, ~32,
++      12, ~64, 12, ~128, 12, ~256, 12, ~512, 12, ~1024, 12, ~2048 };
++struct { int n; unsigned long *e[12]; } g
++  = { 12, { &s[0], &s[2], &s[4], &s[6], &s[8], &s[10], &s[12], &s[14],
++	    &s[16], &s[18], &s[20], &s[22] } };
++int c[12];
++
++__attribute__((noinline, noclone)) void
++foo (void)
++{
++  int i, j;
++  for (i = 0; i < g.n; i++)
++    for (j = 0; j < g.n; j++)
++      {
++	if (i == j && j < g.e[0][0] && (g.e[i][1] & (1UL << j)))
++	  abort ();
++	if (j < g.e[0][0] && (g.e[i][1] & (1UL << j)))
++	  c[i]++;
++      }
++}
++
++int
++main ()
++{
++  int i;
++  asm volatile ("" : "+m" (s), "+m" (g), "+m" (c));
++  foo ();
++  for (i = 0; i < 12; i++)
++    if (c[i] != 11)
++      abort ();
++  return 0;
++}
+Index: gcc/testsuite/gcc.dg/pr48837.c
+===================================================================
+--- a/src/gcc/testsuite/gcc.dg/pr48837.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/testsuite/gcc.dg/pr48837.c	(.../branches/gcc-4_5-branch)
+@@ -0,0 +1,30 @@
++/* PR tree-optimization/48837 */
++/* { dg-do run } */
++/* { dg-options "-O2" } */
++
++void abort (void);
++
++__attribute__((noinline))
++int baz(void)
++{
++  return 1;
++}
++
++inline const int *bar(const int *a, const int *b)
++{
++ return *a ? a : b;
++}
++
++int foo(int a, int b)
++{
++   return a || b ? baz() : foo(*bar(&a, &b), 1) + foo(1, 0);
++}
++
++int main(void)
++{
++ if (foo(0, 0) != 2)
++   abort();
++
++ return 0;
++}
++
+Index: gcc/testsuite/gcc.dg/pr48685.c
+===================================================================
+--- a/src/gcc/testsuite/gcc.dg/pr48685.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/testsuite/gcc.dg/pr48685.c	(.../branches/gcc-4_5-branch)
+@@ -0,0 +1,11 @@
++/* PR c/48685 */
++/* { dg-do compile } */
++/* { dg-options "-O2" } */
++
++int
++main ()
++{
++  int v = 1;
++  (void) (1 == 2 ? (void) 0 : (v = 0));
++  return v;
++}
+Index: gcc/testsuite/ChangeLog
+===================================================================
+--- a/src/gcc/testsuite/ChangeLog	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/testsuite/ChangeLog	(.../branches/gcc-4_5-branch)
+@@ -1,3 +1,86 @@
++2011-05-19  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
++
++	* gcc.c-torture/execute/960321-1.x: Remove.
++
++2011-05-11  Michael Meissner  <meissner@linux.vnet.ibm.com>
++
++	Backport from mainline
++	2011-05-10  Michael Meissner  <meissner@linux.vnet.ibm.com>
++
++	PR target/48857
++	* gcc.target/powerpc/pr48857.c: New file, make sure V2DI arguments
++	are passed and returned in vector registers.
++
++2011-05-10  Jakub Jelinek  <jakub@redhat.com>
++
++	Backported from mainline
++	2011-05-07  Zdenek Dvorak  <ook@ucw.cz>
++
++	PR tree-optimization/48837
++	* gcc.dg/pr48837.c: New testcase.
++
++2011-05-09  Jason Merrill  <jason@redhat.com>
++
++	* g++.dg/template/nontype23.C: New.
++
++2011-05-05  Jason Merrill  <jason@redhat.com>
++
++	* g++.dg/init/new30.C: New.
++
++2011-05-05  Julian Brown  <julian@codesourcery.com>
++
++	* gcc.target/arm/neon-vset_lanes8.c: New test.
++
++2011-05-05  Ira Rosen  <ira.rosen@linaro.org>
++
++	Backport from mainline:
++	2011-04-18  Ulrich Weigand  <ulrich.weigand@linaro.org>
++		    Ira Rosen  <ira.rosen@linaro.org>
++
++	PR target/48252
++	* gcc.target/arm/pr48252.c: New test.
++
++2011-05-04  Uros Bizjak  <ubizjak@gmail.com>
++
++	Backport from mainline
++	2011-04-21  Uros Bizjak  <ubizjak@gmail.com>
++
++	PR target/48708
++	* gcc.target/i386/pr48708.c: New test.
++
++2011-05-04  Uros Bizjak  <ubizjak@gmail.com>
++
++	Backport from mainline
++	2010-12-08  H.J. Lu  <hongjiu.lu@intel.com>
++
++	* gcc.target/i386/sse2-init-v2di-2.c: Add "-dp" and update
++	expected scan.
++
++2011-05-03  Jakub Jelinek  <jakub@redhat.com>
++
++	PR target/48774
++	* gcc.dg/pr48774.c: New test.
++
++	Backport from mainline
++	2011-04-30  Jakub Jelinek  <jakub@redhat.com>
++
++	PR tree-optimization/48809
++	* gcc.c-torture/execute/pr48809.c: New test.
++
++	2011-04-27  Jakub Jelinek  <jakub@redhat.com>
++
++	PR c/48742
++	* gcc.c-torture/compile/pr48742.c: New test.
++
++	2011-04-23  Jakub Jelinek  <jakub@redhat.com>
++
++	PR c/48685
++	* gcc.dg/pr48685.c: New test.
++
++2011-04-27  Jason Merrill  <jason@redhat.com>
++
++	* g++.dg/parse/ambig6.C: New.
++
+ 2011-04-28  Release Manager
+ 
+ 	* GCC 4.5.3 released.
+Index: gcc/testsuite/g++.dg/parse/ambig6.C
+===================================================================
+--- a/src/gcc/testsuite/g++.dg/parse/ambig6.C	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/testsuite/g++.dg/parse/ambig6.C	(.../branches/gcc-4_5-branch)
+@@ -0,0 +1,12 @@
++// PR c++/48046
++
++namespace N1 { typedef int   T; } // { dg-error "" }
++namespace N2 { typedef float T; } // { dg-error "" }
++
++int main()
++{
++  using namespace N1;
++  using namespace N2;
++
++  static T t;			// { dg-error "" }
++}
+Index: gcc/testsuite/g++.dg/init/new30.C
+===================================================================
+--- a/src/gcc/testsuite/g++.dg/init/new30.C	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/testsuite/g++.dg/init/new30.C	(.../branches/gcc-4_5-branch)
+@@ -0,0 +1,15 @@
++// PR c++/40975
++
++struct data_type
++{
++    // constructor required to reproduce compiler bug
++    data_type() {}
++};
++
++struct ptr_type
++{
++    // array new as default argument required to reproduce compiler bug
++    ptr_type (data_type* ptr = new data_type[1]) { delete[] ptr; }
++};
++
++ptr_type obj;
+Index: gcc/testsuite/g++.dg/template/nontype23.C
+===================================================================
+--- a/src/gcc/testsuite/g++.dg/template/nontype23.C	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/testsuite/g++.dg/template/nontype23.C	(.../branches/gcc-4_5-branch)
+@@ -0,0 +1,9 @@
++// PR c++/48936
++
++template <bool C> int foo (void);
++template <class T> struct S
++{
++  static const unsigned int a = sizeof (T);
++  enum { c = sizeof (foo <(a == 0)> ()) };
++};
++S<int> x;
+Index: gcc/cp/ChangeLog
+===================================================================
+--- a/src/gcc/cp/ChangeLog	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/cp/ChangeLog	(.../branches/gcc-4_5-branch)
+@@ -1,3 +1,15 @@
++2011-05-09  Jason Merrill  <jason@redhat.com>
++
++	PR c++/48936
++	* decl2.c (mark_used): Instantiate constant variables even
++	in unevaluated context.
++
++2011-04-27  Jason Merrill  <jason@redhat.com>
++
++	PR c++/48046
++	* parser.c (cp_parser_diagnose_invalid_type_name): Commit
++	to tentative parse sooner.
++
+ 2011-04-28  Release Manager
+ 
+ 	* GCC 4.5.3 released.
+Index: gcc/cp/decl2.c
+===================================================================
+--- a/src/gcc/cp/decl2.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/cp/decl2.c	(.../branches/gcc-4_5-branch)
+@@ -3991,8 +3991,6 @@
+ void
+ mark_used (tree decl)
+ {
+-  HOST_WIDE_INT saved_processing_template_decl = 0;
+-
+   /* If DECL is a BASELINK for a single function, then treat it just
+      like the DECL for the function.  Otherwise, if the BASELINK is
+      for an overloaded function, we don't know which function was
+@@ -4029,9 +4027,6 @@
+       error ("used here");
+       return;
+     }
+-  /* If we don't need a value, then we don't need to synthesize DECL.  */
+-  if (cp_unevaluated_operand != 0)
+-    return;
+ 
+   /* We can only check DECL_ODR_USED on variables or functions with
+      DECL_LANG_SPECIFIC set, and these are also the only decls that we
+@@ -4059,9 +4054,10 @@
+      DECL.  However, if DECL is a static data member initialized with
+      a constant, we need the value right now because a reference to
+      such a data member is not value-dependent.  */
+-  if (TREE_CODE (decl) == VAR_DECL
+-      && DECL_INITIALIZED_BY_CONSTANT_EXPRESSION_P (decl)
+-      && DECL_CLASS_SCOPE_P (decl))
++  if (DECL_INTEGRAL_CONSTANT_VAR_P (decl)
++      && !DECL_INITIAL (decl)
++      && DECL_LANG_SPECIFIC (decl)
++      && DECL_TEMPLATE_INSTANTIATION (decl))
+     {
+       /* Don't try to instantiate members of dependent types.  We
+ 	 cannot just use dependent_type_p here because this function
+@@ -4071,12 +4067,14 @@
+       if (CLASSTYPE_TEMPLATE_INFO ((DECL_CONTEXT (decl)))
+ 	  && uses_template_parms (CLASSTYPE_TI_ARGS (DECL_CONTEXT (decl))))
+ 	return;
+-      /* Pretend that we are not in a template, even if we are, so
+-	 that the static data member initializer will be processed.  */
+-      saved_processing_template_decl = processing_template_decl;
+-      processing_template_decl = 0;
++      instantiate_decl (decl, /*defer_ok=*/false,
++			/*expl_inst_class_mem_p=*/false);
+     }
+ 
++  /* If we don't need a value, then we don't need to synthesize DECL.  */
++  if (cp_unevaluated_operand != 0)
++    return;
++
+   if (processing_template_decl)
+     return;
+ 
+@@ -4149,8 +4147,6 @@
+        need.  Therefore, we always try to defer instantiation.  */
+     instantiate_decl (decl, /*defer_ok=*/true,
+ 		      /*expl_inst_class_mem_p=*/false);
+-
+-  processing_template_decl = saved_processing_template_decl;
+ }
+ 
+ #include "gt-cp-decl2.h"
+Index: gcc/cp/parser.c
+===================================================================
+--- a/src/gcc/cp/parser.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/cp/parser.c	(.../branches/gcc-4_5-branch)
+@@ -2333,6 +2333,7 @@
+ 				      location_t location)
+ {
+   tree decl, old_scope;
++  cp_parser_commit_to_tentative_parse (parser);
+   /* Try to lookup the identifier.  */
+   old_scope = parser->scope;
+   parser->scope = scope;
+@@ -2423,7 +2424,6 @@
+       else
+ 	gcc_unreachable ();
+     }
+-  cp_parser_commit_to_tentative_parse (parser);
+ }
+ 
+ /* Check for a common situation where a type-name should be present,
+Index: gcc/ifcvt.c
+===================================================================
+--- a/src/gcc/ifcvt.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/ifcvt.c	(.../branches/gcc-4_5-branch)
+@@ -3818,7 +3818,7 @@
+ 		    basic_block other_bb, basic_block new_dest, int reversep)
+ {
+   rtx head, end, jump, earliest = NULL_RTX, old_dest, new_label = NULL_RTX;
+-  bitmap merge_set = NULL;
++  bitmap merge_set = NULL, merge_set_noclobber = NULL;
+   /* Number of pending changes.  */
+   int n_validated_changes = 0;
+ 
+@@ -3951,11 +3951,14 @@
+ 
+       /* Collect:
+ 	   MERGE_SET = set of registers set in MERGE_BB
++	   MERGE_SET_NOCLOBBER = like MERGE_SET, but only includes registers
++	     that are really set, not just clobbered.
+ 	   TEST_LIVE = set of registers live at EARLIEST
+-	   TEST_SET  = set of registers set between EARLIEST and the
+-		       end of the block.  */
++	   TEST_SET = set of registers set between EARLIEST and the
++	     end of the block.  */
+ 
+       merge_set = BITMAP_ALLOC (&reg_obstack);
++      merge_set_noclobber = BITMAP_ALLOC (&reg_obstack);
+ 
+       /* If we allocated new pseudos (e.g. in the conditional move
+ 	 expander called from noce_emit_cmove), we must resize the
+@@ -3967,13 +3970,8 @@
+ 	{
+ 	  if (NONDEBUG_INSN_P (insn))
+ 	    {
+-	      unsigned int uid = INSN_UID (insn);
+-	      df_ref *def_rec;
+-	      for (def_rec = DF_INSN_UID_DEFS (uid); *def_rec; def_rec++)
+-		{
+-		  df_ref def = *def_rec;
+-		  bitmap_set_bit (merge_set, DF_REF_REGNO (def));
+-		}
++	      df_simulate_find_defs (insn, merge_set);
++	      df_simulate_find_noclobber_defs (insn, merge_set_noclobber);
+ 	    }
+ 	}
+ 
+@@ -3984,7 +3982,7 @@
+ 	  unsigned i;
+ 	  bitmap_iterator bi;
+ 
+-          EXECUTE_IF_SET_IN_BITMAP (merge_set, 0, i, bi)
++          EXECUTE_IF_SET_IN_BITMAP (merge_set_noclobber, 0, i, bi)
+ 	    {
+ 	      if (i < FIRST_PSEUDO_REGISTER
+ 		  && ! fixed_regs[i]
+@@ -4015,12 +4013,14 @@
+ 	}
+ 
+       /* We can perform the transformation if
+-	   MERGE_SET & (TEST_SET | TEST_LIVE)
++	   MERGE_SET_NOCLOBBER & TEST_SET
+ 	 and
++	   MERGE_SET & TEST_LIVE
++	 and
+ 	   TEST_SET & DF_LIVE_IN (merge_bb)
+ 	 are empty.  */
+ 
+-      if (bitmap_intersect_p (merge_set, test_set)
++      if (bitmap_intersect_p (merge_set_noclobber, test_set)
+ 	  || bitmap_intersect_p (merge_set, test_live)
+ 	  || bitmap_intersect_p (test_set, df_get_live_in (merge_bb)))
+ 	intersect = true;
+@@ -4104,10 +4104,11 @@
+ 	  unsigned i;
+ 	  bitmap_iterator bi;
+ 
+-	  EXECUTE_IF_SET_IN_BITMAP (merge_set, 0, i, bi)
++	  EXECUTE_IF_SET_IN_BITMAP (merge_set_noclobber, 0, i, bi)
+ 	    remove_reg_equal_equiv_notes_for_regno (i);
+ 
+ 	  BITMAP_FREE (merge_set);
++	  BITMAP_FREE (merge_set_noclobber);
+ 	}
+ 
+       reorder_insns (head, end, PREV_INSN (earliest));
+@@ -4128,7 +4129,10 @@
+   cancel_changes (0);
+  fail:
+   if (merge_set)
+-    BITMAP_FREE (merge_set);
++    {
++      BITMAP_FREE (merge_set);
++      BITMAP_FREE (merge_set_noclobber);
++    }
+   return FALSE;
+ }
+ 
+Index: gcc/df.h
+===================================================================
+--- a/src/gcc/df.h	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/df.h	(.../branches/gcc-4_5-branch)
+@@ -978,6 +978,7 @@
+ extern void df_md_add_problem (void);
+ extern void df_md_simulate_artificial_defs_at_top (basic_block, bitmap);
+ extern void df_md_simulate_one_insn (basic_block, rtx, bitmap);
++extern void df_simulate_find_noclobber_defs (rtx, bitmap);
+ extern void df_simulate_find_defs (rtx, bitmap);
+ extern void df_simulate_defs (rtx, bitmap);
+ extern void df_simulate_uses (rtx, bitmap);
+Index: gcc/c-typeck.c
+===================================================================
+--- a/src/gcc/c-typeck.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/c-typeck.c	(.../branches/gcc-4_5-branch)
+@@ -9800,7 +9800,7 @@
+ 		warn_for_sign_compare (location, orig_op0_folded,
+ 				       orig_op1_folded, op0, op1,
+ 				       result_type, resultcode);
+-	      if (!in_late_binary_op)
++	      if (!in_late_binary_op && !int_operands)
+ 		{
+ 		  if (!op0_maybe_const || TREE_CODE (op0) != INTEGER_CST)
+ 		    op0 = c_wrap_maybe_const (op0, !op0_maybe_const);
+Index: gcc/tree-inline.c
+===================================================================
+--- a/src/gcc/tree-inline.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/tree-inline.c	(.../branches/gcc-4_5-branch)
+@@ -4179,14 +4179,16 @@
+ 					 CONSTRUCTOR_ELTS (*tp));
+       *tp = new_tree;
+     }
++  else if (code == STATEMENT_LIST)
++    /* We used to just abort on STATEMENT_LIST, but we can run into them
++       with statement-expressions (c++/40975).  */
++    copy_statement_list (tp);
+   else if (TREE_CODE_CLASS (code) == tcc_type)
+     *walk_subtrees = 0;
+   else if (TREE_CODE_CLASS (code) == tcc_declaration)
+     *walk_subtrees = 0;
+   else if (TREE_CODE_CLASS (code) == tcc_constant)
+     *walk_subtrees = 0;
+-  else
+-    gcc_assert (code != STATEMENT_LIST);
+   return NULL_TREE;
+ }
+ 
+Index: gcc/var-tracking.c
+===================================================================
+--- a/src/gcc/var-tracking.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/var-tracking.c	(.../branches/gcc-4_5-branch)
+@@ -4134,8 +4134,9 @@
+   VALUE_RECURSED_INTO (val) = true;
+ 
+   for (node = var->var_part[0].loc_chain; node; node = node->next)
+-    if (MEM_P (node->loc) && MEM_EXPR (node->loc) == expr
+-	&& MEM_OFFSET (node->loc) == 0)
++    if (MEM_P (node->loc)
++	&& MEM_EXPR (node->loc) == expr
++	&& INT_MEM_OFFSET (node->loc) == 0)
+       {
+ 	where = node;
+ 	break;
+@@ -4198,11 +4199,10 @@
+ 	{
+ 	  for (loc = var->var_part[0].loc_chain; loc; loc = loc->next)
+ 	    {
+-	      /* We want to remove dying MEMs that doesn't refer to
+-		 DECL.  */
++	      /* We want to remove dying MEMs that doesn't refer to DECL.  */
+ 	      if (GET_CODE (loc->loc) == MEM
+ 		  && (MEM_EXPR (loc->loc) != decl
+-		      || MEM_OFFSET (loc->loc))
++		      || INT_MEM_OFFSET (loc->loc) != 0)
+ 		  && !mem_dies_at_call (loc->loc))
+ 		break;
+ 	      /* We want to move here MEMs that do refer to DECL.  */
+@@ -4246,7 +4246,7 @@
+ 
+ 	  if (GET_CODE (loc->loc) != MEM
+ 	      || (MEM_EXPR (loc->loc) == decl
+-		  && MEM_OFFSET (loc->loc) == 0)
++		  && INT_MEM_OFFSET (loc->loc) == 0)
+ 	      || !mem_dies_at_call (loc->loc))
+ 	    {
+ 	      if (old_loc != loc->loc && emit_notes)
+Index: gcc/df-problems.c
+===================================================================
+--- a/src/gcc/df-problems.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/df-problems.c	(.../branches/gcc-4_5-branch)
+@@ -3748,9 +3748,22 @@
+   for (def_rec = DF_INSN_UID_DEFS (uid); *def_rec; def_rec++)
+     {
+       df_ref def = *def_rec;
+-      /* If the def is to only part of the reg, it does
+-	 not kill the other defs that reach here.  */
+-      if (!(DF_REF_FLAGS (def) & (DF_REF_PARTIAL | DF_REF_CONDITIONAL)))
++      bitmap_set_bit (defs, DF_REF_REGNO (def));
++    }
++}
++
++/* Find the set of real DEFs, which are not clobbers, for INSN.  */
++
++void
++df_simulate_find_noclobber_defs (rtx insn, bitmap defs)
++{
++  df_ref *def_rec;
++  unsigned int uid = INSN_UID (insn);
++
++  for (def_rec = DF_INSN_UID_DEFS (uid); *def_rec; def_rec++)
++    {
++      df_ref def = *def_rec;
++      if (!(DF_REF_FLAGS (def) & (DF_REF_MUST_CLOBBER | DF_REF_MAY_CLOBBER)))
+ 	bitmap_set_bit (defs, DF_REF_REGNO (def));
+     }
+ }
+@@ -3903,13 +3916,9 @@
+    the block, starting with the first one.
+    ----------------------------------------------------------------------------*/
+ 
+-/* Apply the artificial uses and defs at the top of BB in a forwards
+-   direction.  ??? This is wrong; defs mark the point where a pseudo
+-   becomes live when scanning forwards (unless a def is unused).  Since
+-   there are no REG_UNUSED notes for artificial defs, passes that
+-   require artificial defs probably should not call this function
+-   unless (as is the case for fwprop) they are correct when liveness
+-   bitmaps are *under*estimated.  */
++/* Initialize the LIVE bitmap, which should be copied from DF_LIVE_IN or
++   DF_LR_IN for basic block BB, for forward scanning by marking artificial
++   defs live.  */
+ 
+ void
+ df_simulate_initialize_forwards (basic_block bb, bitmap live)
+@@ -3921,7 +3930,7 @@
+     {
+       df_ref def = *def_rec;
+       if (DF_REF_FLAGS (def) & DF_REF_AT_TOP)
+-	bitmap_clear_bit (live, DF_REF_REGNO (def));
++	bitmap_set_bit (live, DF_REF_REGNO (def));
+     }
+ }
+ 
+@@ -3942,7 +3951,7 @@
+      while here the scan is performed forwards!  So, first assume that the
+      def is live, and if this is not true REG_UNUSED notes will rectify the
+      situation.  */
+-  df_simulate_find_defs (insn, live);
++  df_simulate_find_noclobber_defs (insn, live);
+ 
+   /* Clear all of the registers that go dead.  */
+   for (link = REG_NOTES (insn); link; link = XEXP (link, 1))
+Index: gcc/tree-switch-conversion.c
+===================================================================
+--- a/src/gcc/tree-switch-conversion.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/tree-switch-conversion.c	(.../branches/gcc-4_5-branch)
+@@ -549,7 +549,7 @@
+ build_arrays (gimple swtch)
+ {
+   tree arr_index_type;
+-  tree tidx, sub, tmp;
++  tree tidx, sub, tmp, utype;
+   gimple stmt;
+   gimple_stmt_iterator gsi;
+   int i;
+@@ -557,14 +557,20 @@
+ 
+   gsi = gsi_for_stmt (swtch);
+ 
++  /* Make sure we do not generate arithmetics in a subrange.  */
++  utype = TREE_TYPE (info.index_expr);
++  if (TREE_TYPE (utype))
++    utype = lang_hooks.types.type_for_mode (TYPE_MODE (TREE_TYPE (utype)), 1);
++  else
++    utype = lang_hooks.types.type_for_mode (TYPE_MODE (utype), 1);
++
+   arr_index_type = build_index_type (info.range_size);
+-  tmp = create_tmp_var (TREE_TYPE (info.index_expr), "csti");
++  tmp = create_tmp_var (utype, "csui");
+   add_referenced_var (tmp);
+   tidx = make_ssa_name (tmp, NULL);
+-  sub = fold_build2_loc (loc, MINUS_EXPR,
+-		     TREE_TYPE (info.index_expr), info.index_expr,
+-		     fold_convert_loc (loc, TREE_TYPE (info.index_expr),
+-				       info.range_min));
++  sub = fold_build2_loc (loc, MINUS_EXPR, utype,
++			 fold_convert_loc (loc, utype, info.index_expr),
++			 fold_convert_loc (loc, utype, info.range_min));
+   sub = force_gimple_operand_gsi (&gsi, sub,
+ 				  false, NULL, true, GSI_SAME_STMT);
+   stmt = gimple_build_assign (tidx, sub);
+@@ -673,12 +679,7 @@
+   tree label_decl2 = create_artificial_label (UNKNOWN_LOCATION);
+   tree label_decl3 = create_artificial_label (UNKNOWN_LOCATION);
+   gimple label1, label2, label3;
+-
+-  tree utype;
+-  tree tmp_u_1, tmp_u_2, tmp_u_var;
+-  tree cast;
+-  gimple cast_assign, minus_assign;
+-  tree ulb, minus;
++  tree utype, tidx;
+   tree bound;
+ 
+   gimple cond_stmt;
+@@ -692,49 +693,24 @@
+   gcc_assert (info.default_values);
+   bb0 = gimple_bb (swtch);
+ 
+-  /* Make sure we do not generate arithmetics in a subrange.  */
+-  if (TREE_TYPE (TREE_TYPE (info.index_expr)))
+-    utype = lang_hooks.types.type_for_mode
+-      (TYPE_MODE (TREE_TYPE (TREE_TYPE (info.index_expr))), 1);
+-  else
+-    utype = lang_hooks.types.type_for_mode
+-      (TYPE_MODE (TREE_TYPE (info.index_expr)), 1);
++  tidx = gimple_assign_lhs (info.arr_ref_first);
++  utype = TREE_TYPE (tidx);
+ 
+   /* (end of) block 0 */
+   gsi = gsi_for_stmt (info.arr_ref_first);
+-  tmp_u_var = create_tmp_var (utype, "csui");
+-  add_referenced_var (tmp_u_var);
+-  tmp_u_1 = make_ssa_name (tmp_u_var, NULL);
++  gsi_next (&gsi);
+ 
+-  cast = fold_convert_loc (loc, utype, info.index_expr);
+-  cast_assign = gimple_build_assign (tmp_u_1, cast);
+-  SSA_NAME_DEF_STMT (tmp_u_1) = cast_assign;
+-  gsi_insert_before (&gsi, cast_assign, GSI_SAME_STMT);
+-  update_stmt (cast_assign);
+-
+-  ulb = fold_convert_loc (loc, utype, info.range_min);
+-  minus = fold_build2_loc (loc, MINUS_EXPR, utype, tmp_u_1, ulb);
+-  minus = force_gimple_operand_gsi (&gsi, minus, false, NULL, true,
+-				    GSI_SAME_STMT);
+-  tmp_u_2 = make_ssa_name (tmp_u_var, NULL);
+-  minus_assign = gimple_build_assign (tmp_u_2, minus);
+-  SSA_NAME_DEF_STMT (tmp_u_2) = minus_assign;
+-  gsi_insert_before (&gsi, minus_assign, GSI_SAME_STMT);
+-  update_stmt (minus_assign);
+-
+   bound = fold_convert_loc (loc, utype, info.range_size);
+-  cond_stmt = gimple_build_cond (LE_EXPR, tmp_u_2, bound, NULL_TREE, NULL_TREE);
++  cond_stmt = gimple_build_cond (LE_EXPR, tidx, bound, NULL_TREE, NULL_TREE);
+   gsi_insert_before (&gsi, cond_stmt, GSI_SAME_STMT);
+   update_stmt (cond_stmt);
+ 
+   /* block 2 */
+-  gsi = gsi_for_stmt (info.arr_ref_first);
+   label2 = gimple_build_label (label_decl2);
+   gsi_insert_before (&gsi, label2, GSI_SAME_STMT);
+   last_assign = gen_def_assigns (&gsi);
+ 
+   /* block 1 */
+-  gsi = gsi_for_stmt (info.arr_ref_first);
+   label1 = gimple_build_label (label_decl1);
+   gsi_insert_before (&gsi, label1, GSI_SAME_STMT);
+ 
+Index: gcc/config/i386/i386.md
+===================================================================
+--- a/src/gcc/config/i386/i386.md	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/config/i386/i386.md	(.../branches/gcc-4_5-branch)
+@@ -2430,7 +2430,7 @@
+   [(set_attr "type" "*,*,mmx,mmxmov,mmxmov,sselog1,ssemov,ssemov,ssemov,sselog1,ssemov,ssemov,ssemov")
+    (set (attr "prefix")
+      (if_then_else (eq_attr "alternative" "5,6,7,8")
+-       (const_string "vex")
++       (const_string "maybe_vex")
+        (const_string "orig")))
+    (set_attr "mode" "DI,DI,DI,DI,DI,TI,DI,TI,DI,V4SF,V2SF,V4SF,V2SF")])
+ 
+@@ -2468,21 +2468,15 @@
+ 	return "movdq2q\t{%1, %0|%0, %1}";
+ 
+     case TYPE_SSEMOV:
+-      if (TARGET_AVX)
+-	{
+-	  if (get_attr_mode (insn) == MODE_TI)
+-	    return "vmovdqa\t{%1, %0|%0, %1}";
+-	  else
+-	    return "vmovq\t{%1, %0|%0, %1}";
+-	}
+-
+       if (get_attr_mode (insn) == MODE_TI)
+-	return "movdqa\t{%1, %0|%0, %1}";
+-      /* FALLTHRU */
++	return "%vmovdqa\t{%1, %0|%0, %1}";
++      /* Handle broken assemblers that require movd instead of movq.  */
++      if (GENERAL_REG_P (operands[0]) || GENERAL_REG_P (operands[1]))
++	return "%vmovd\t{%1, %0|%0, %1}";
++      return "%vmovq\t{%1, %0|%0, %1}";
+ 
+     case TYPE_MMXMOV:
+-      /* Moves from and into integer register is done using movd
+-	 opcode with REX prefix.  */
++      /* Handle broken assemblers that require movd instead of movq.  */
+       if (GENERAL_REG_P (operands[0]) || GENERAL_REG_P (operands[1]))
+ 	return "movd\t{%1, %0|%0, %1}";
+       return "movq\t{%1, %0|%0, %1}";
+@@ -2878,7 +2872,7 @@
+    && (reload_in_progress || reload_completed
+        || (ix86_cmodel == CM_MEDIUM || ix86_cmodel == CM_LARGE)
+        || (!TARGET_SSE_MATH && optimize_function_for_size_p (cfun)
+-	   && standard_80387_constant_p (operands[1]))
++	   && standard_80387_constant_p (operands[1]) > 0)
+        || GET_CODE (operands[1]) != CONST_DOUBLE
+        || memory_operand (operands[0], SFmode))"
+ {
+@@ -2915,12 +2909,13 @@
+ 
+     case 9: case 10: case 14: case 15:
+       return "movd\t{%1, %0|%0, %1}";
+-    case 12: case 13:
+-      return "%vmovd\t{%1, %0|%0, %1}";
+ 
+     case 11:
+       return "movq\t{%1, %0|%0, %1}";
+ 
++    case 12: case 13:
++      return "%vmovd\t{%1, %0|%0, %1}";
++
+     default:
+       gcc_unreachable ();
+     }
+@@ -3048,11 +3043,10 @@
+        || (!(TARGET_SSE2 && TARGET_SSE_MATH)
+            && optimize_function_for_size_p (cfun)
+            && !memory_operand (operands[0], DFmode)
+-	   && standard_80387_constant_p (operands[1]))
++	   && standard_80387_constant_p (operands[1]) > 0)
+        || GET_CODE (operands[1]) != CONST_DOUBLE
+        || ((optimize_function_for_size_p (cfun)
+-            || !TARGET_MEMORY_MISMATCH_STALL
+-	    || reload_in_progress || reload_completed)
++            || !TARGET_MEMORY_MISMATCH_STALL)
+  	   && memory_operand (operands[0], DFmode)))"
+ {
+   switch (which_alternative)
+@@ -3067,6 +3061,7 @@
+     case 3:
+     case 4:
+       return "#";
++
+     case 5:
+       switch (get_attr_mode (insn))
+ 	{
+@@ -3200,7 +3195,7 @@
+        || (ix86_cmodel == CM_MEDIUM || ix86_cmodel == CM_LARGE)
+        || (!(TARGET_SSE2 && TARGET_SSE_MATH)
+            && optimize_function_for_size_p (cfun)
+-	   && standard_80387_constant_p (operands[1]))
++	   && standard_80387_constant_p (operands[1]) > 0)
+        || GET_CODE (operands[1]) != CONST_DOUBLE
+        || memory_operand (operands[0], DFmode))"
+ {
+@@ -3262,7 +3257,8 @@
+ 
+     case 9:
+     case 10:
+-    return "%vmovd\t{%1, %0|%0, %1}";
++      /* Handle broken assemblers that require movd instead of movq.  */
++      return "%vmovd\t{%1, %0|%0, %1}";
+ 
+     default:
+       gcc_unreachable();
+@@ -3340,7 +3336,7 @@
+        || (ix86_cmodel == CM_MEDIUM || ix86_cmodel == CM_LARGE)
+        || (!(TARGET_SSE2 && TARGET_SSE_MATH)
+            && optimize_function_for_size_p (cfun)
+-	   && standard_80387_constant_p (operands[1]))
++	   && standard_80387_constant_p (operands[1]) > 0)
+        || GET_CODE (operands[1]) != CONST_DOUBLE
+        || memory_operand (operands[0], DFmode))"
+ {
+@@ -3361,11 +3357,11 @@
+       switch (get_attr_mode (insn))
+ 	{
+ 	case MODE_V4SF:
+-	  return "xorps\t%0, %0";
++	  return "%vxorps\t%0, %d0";
+ 	case MODE_V2DF:
+-	  return "xorpd\t%0, %0";
++	  return "%vxorpd\t%0, %d0";
+ 	case MODE_TI:
+-	  return "pxor\t%0, %0";
++	  return "%vpxor\t%0, %d0";
+ 	default:
+ 	  gcc_unreachable ();
+ 	}
+@@ -3375,28 +3371,56 @@
+       switch (get_attr_mode (insn))
+ 	{
+ 	case MODE_V4SF:
+-	  return "movaps\t{%1, %0|%0, %1}";
++	  return "%vmovaps\t{%1, %0|%0, %1}";
+ 	case MODE_V2DF:
+-	  return "movapd\t{%1, %0|%0, %1}";
++	  return "%vmovapd\t{%1, %0|%0, %1}";
+ 	case MODE_TI:
+-	  return "movdqa\t{%1, %0|%0, %1}";
++	  return "%vmovdqa\t{%1, %0|%0, %1}";
+ 	case MODE_DI:
+-	  return "movq\t{%1, %0|%0, %1}";
++	  return "%vmovq\t{%1, %0|%0, %1}";
+ 	case MODE_DF:
+-	  return "movsd\t{%1, %0|%0, %1}";
++	  if (TARGET_AVX)
++	    {
++	      if (REG_P (operands[0]) && REG_P (operands[1]))
++		return "vmovsd\t{%1, %0, %0|%0, %0, %1}";
++	      else
++		return "vmovsd\t{%1, %0|%0, %1}";
++	    }
++	  else
++	    return "movsd\t{%1, %0|%0, %1}";
+ 	case MODE_V1DF:
+-	  return "movlpd\t{%1, %0|%0, %1}";
++	  if (TARGET_AVX)
++	    {
++	      if (REG_P (operands[0]))
++		return "vmovlpd\t{%1, %0, %0|%0, %0, %1}";
++	      else
++		return "vmovlpd\t{%1, %0|%0, %1}";
++	    }
++	  else
++	    return "movlpd\t{%1, %0|%0, %1}";
+ 	case MODE_V2SF:
+-	  return "movlps\t{%1, %0|%0, %1}";
++	  if (TARGET_AVX)
++	    {
++	      if (REG_P (operands[0]))
++		return "vmovlps\t{%1, %0, %0|%0, %0, %1}";
++	      else
++		return "vmovlps\t{%1, %0|%0, %1}";
++	    }
++	  else
++	    return "movlps\t{%1, %0|%0, %1}";
+ 	default:
+ 	  gcc_unreachable ();
+ 	}
+ 
+     default:
+-      gcc_unreachable();
++      gcc_unreachable ();
+     }
+ }
+   [(set_attr "type" "fmov,fmov,fmov,multi,multi,sselog1,ssemov,ssemov,ssemov")
++   (set (attr "prefix")
++     (if_then_else (eq_attr "alternative" "0,1,2,3,4")
++       (const_string "orig")
++       (const_string "maybe_vex")))
+    (set (attr "prefix_data16")
+      (if_then_else (eq_attr "mode" "V1DF")
+        (const_string "1")
+@@ -3543,7 +3567,8 @@
+   "optimize_function_for_size_p (cfun)
+    && !(MEM_P (operands[0]) && MEM_P (operands[1]))
+    && (reload_in_progress || reload_completed
+-       || standard_80387_constant_p (operands[1])
++       || (ix86_cmodel == CM_MEDIUM || ix86_cmodel == CM_LARGE)
++       || standard_80387_constant_p (operands[1]) > 0
+        || GET_CODE (operands[1]) != CONST_DOUBLE
+        || memory_operand (operands[0], XFmode))"
+ {
+@@ -3571,6 +3596,7 @@
+   "optimize_function_for_speed_p (cfun)
+    && !(MEM_P (operands[0]) && MEM_P (operands[1]))
+    && (reload_in_progress || reload_completed
++       || (ix86_cmodel == CM_MEDIUM || ix86_cmodel == CM_LARGE)
+        || GET_CODE (operands[1]) != CONST_DOUBLE
+        || memory_operand (operands[0], XFmode))"
+ {
+@@ -3715,7 +3741,7 @@
+     }
+   else if (FP_REG_P (r))
+     {
+-      if (!standard_80387_constant_p (c))
++      if (standard_80387_constant_p (c) < 1)
+ 	FAIL;
+     }
+   else if (MMX_REG_P (r))
+@@ -3747,7 +3773,7 @@
+     }
+   else if (FP_REG_P (r))
+     {
+-      if (!standard_80387_constant_p (c))
++      if (standard_80387_constant_p (c) < 1)
+ 	FAIL;
+     }
+   else if (MMX_REG_P (r))
+Index: gcc/config/i386/mmx.md
+===================================================================
+--- a/src/gcc/config/i386/mmx.md	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/config/i386/mmx.md	(.../branches/gcc-4_5-branch)
+@@ -63,6 +63,7 @@
+   DONE;
+ })
+ 
++;; movd instead of movq is required to handle broken assemblers.
+ (define_insn "*mov<mode>_internal_rex64"
+   [(set (match_operand:MMXMODEI8 0 "nonimmediate_operand"
+ 				"=rm,r,!?y,!?y ,m  ,!y,*Y2,x,x ,m,r,Yi")
+@@ -81,8 +82,8 @@
+     %vpxor\t%0, %d0
+     %vmovq\t{%1, %0|%0, %1}
+     %vmovq\t{%1, %0|%0, %1}
+-    %vmovq\t{%1, %0|%0, %1}
+-    %vmovq\t{%1, %0|%0, %1}"
++    %vmovd\t{%1, %0|%0, %1}
++    %vmovd\t{%1, %0|%0, %1}"
+   [(set_attr "type" "imov,imov,mmx,mmxmov,mmxmov,ssecvt,ssecvt,sselog1,ssemov,ssemov,ssemov,ssemov")
+    (set_attr "unit" "*,*,*,*,*,mmx,mmx,*,*,*,*,*")
+    (set_attr "prefix_rep" "*,*,*,*,*,1,1,*,1,*,*,*")
+@@ -192,6 +193,7 @@
+        (const_string "orig")))
+    (set_attr "mode" "DI,DI,DI,DI,DI,DI,DI,V4SF,V4SF,V2SF,V2SF,DI,DI")])
+ 
++;; movd instead of movq is required to handle broken assemblers.
+ (define_insn "*movv2sf_internal_rex64"
+   [(set (match_operand:V2SF 0 "nonimmediate_operand"
+ 				"=rm,r ,!?y,!?y ,m ,!y,*Y2,x,x,x,m,r,Yi")
+Index: gcc/config/i386/constraints.md
+===================================================================
+--- a/src/gcc/config/i386/constraints.md	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/config/i386/constraints.md	(.../branches/gcc-4_5-branch)
+@@ -149,7 +149,7 @@
+ (define_constraint "G"
+   "Standard 80387 floating point constant."
+   (and (match_code "const_double")
+-       (match_test "standard_80387_constant_p (op)")))
++       (match_test "standard_80387_constant_p (op) > 0")))
+ 
+ ;; This can theoretically be any mode's CONST0_RTX.
+ (define_constraint "C"
+Index: gcc/config/i386/sse.md
+===================================================================
+--- a/src/gcc/config/i386/sse.md	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/config/i386/sse.md	(.../branches/gcc-4_5-branch)
+@@ -7473,9 +7473,8 @@
+   "@
+    #
+    #
+-   %vmov{q}\t{%1, %0|%0, %1}"
++   mov{q}\t{%1, %0|%0, %1}"
+   [(set_attr "type" "*,*,imov")
+-   (set_attr "prefix" "*,*,maybe_vex")
+    (set_attr "mode" "*,*,DI")])
+ 
+ (define_insn "*sse2_storeq"
+@@ -7513,11 +7512,11 @@
+    vmovhps\t{%1, %0|%0, %1}
+    vpsrldq\t{$8, %1, %0|%0, %1, 8}
+    vmovq\t{%H1, %0|%0, %H1}
+-   vmov{q}\t{%H1, %0|%0, %H1}"
++   mov{q}\t{%H1, %0|%0, %H1}"
+   [(set_attr "type" "ssemov,sseishft1,ssemov,imov")
+    (set_attr "length_immediate" "*,1,*,*")
+    (set_attr "memory" "*,none,*,*")
+-   (set_attr "prefix" "vex")
++   (set_attr "prefix" "vex,vex,vex,orig")
+    (set_attr "mode" "V2SF,TI,TI,DI")])
+ 
+ (define_insn "*vec_extractv2di_1_rex64"
+@@ -7795,6 +7794,7 @@
+        (const_string "vex")))
+    (set_attr "mode" "TI,TI,TI,TI,TI,V2SF")])
+ 
++;; movd instead of movq is required to handle broken assemblers.
+ (define_insn "*vec_concatv2di_rex64_sse4_1"
+   [(set (match_operand:V2DI 0 "register_operand"     "=x ,x ,Yi,!x,x,x,x")
+ 	(vec_concat:V2DI
+@@ -7804,7 +7804,7 @@
+   "@
+    pinsrq\t{$0x1, %2, %0|%0, %2, 0x1}
+    movq\t{%1, %0|%0, %1}
+-   movq\t{%1, %0|%0, %1}
++   movd\t{%1, %0|%0, %1}
+    movq2dq\t{%1, %0|%0, %1}
+    punpcklqdq\t{%2, %0|%0, %2}
+    movlhps\t{%2, %0|%0, %2}
+@@ -7815,6 +7815,7 @@
+    (set_attr "length_immediate" "1,*,*,*,*,*,*")
+    (set_attr "mode" "TI,TI,TI,TI,TI,V4SF,V2SF")])
+ 
++;; movd instead of movq is required to handle broken assemblers.
+ (define_insn "*vec_concatv2di_rex64_sse"
+   [(set (match_operand:V2DI 0 "register_operand"     "=Y2 ,Yi,!Y2,Y2,x,x")
+ 	(vec_concat:V2DI
+@@ -7823,7 +7824,7 @@
+   "TARGET_64BIT && TARGET_SSE"
+   "@
+    movq\t{%1, %0|%0, %1}
+-   movq\t{%1, %0|%0, %1}
++   movd\t{%1, %0|%0, %1}
+    movq2dq\t{%1, %0|%0, %1}
+    punpcklqdq\t{%2, %0|%0, %2}
+    movlhps\t{%2, %0|%0, %2}
+Index: gcc/config/i386/i386.c
+===================================================================
+--- a/src/gcc/config/i386/i386.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/config/i386/i386.c	(.../branches/gcc-4_5-branch)
+@@ -14610,11 +14610,15 @@
+       if (req_mode == CCZmode)
+ 	return 0;
+       /* FALLTHRU */
++    case CCZmode:
++      break;
++
+     case CCAmode:
+     case CCCmode:
+     case CCOmode:
+     case CCSmode:
+-    case CCZmode:
++      if (set_mode != req_mode)
++	return 0;
+       break;
+ 
+     default:
+@@ -25067,7 +25071,7 @@
+ 	 zero above.  We only want to wind up preferring 80387 registers if
+ 	 we plan on doing computation with them.  */
+       if (TARGET_80387
+-	  && standard_80387_constant_p (x))
++	  && standard_80387_constant_p (x) > 0)
+ 	{
+ 	  /* Limit class to non-sse.  */
+ 	  if (regclass == FLOAT_SSE_REGS)
+@@ -27711,10 +27715,19 @@
+       break;
+ 
+     case V2DImode:
+-      use_vec_merge = TARGET_SSE4_1;
++      use_vec_merge = TARGET_SSE4_1 && TARGET_64BIT;
+       if (use_vec_merge)
+ 	break;
+ 
++      tmp = gen_reg_rtx (GET_MODE_INNER (mode));
++      ix86_expand_vector_extract (false, tmp, target, 1 - elt);
++      if (elt == 0)
++	tmp = gen_rtx_VEC_CONCAT (mode, tmp, val);
++      else
++	tmp = gen_rtx_VEC_CONCAT (mode, val, tmp);
++      emit_insn (gen_rtx_SET (VOIDmode, target, tmp));
++      return;
++
+     case V2DFmode:
+       {
+ 	rtx op0, op1;
+Index: gcc/config/rs6000/rs6000.c
+===================================================================
+--- a/src/gcc/config/rs6000/rs6000.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/config/rs6000/rs6000.c	(.../branches/gcc-4_5-branch)
+@@ -5426,10 +5426,11 @@
+ 
+       if (model == TLS_MODEL_GLOBAL_DYNAMIC)
+ 	{
+-	  r3 = gen_rtx_REG (Pmode, 3);
+ 	  tga = rs6000_tls_get_addr ();
+-	  emit_library_call_value (tga, dest, LCT_CONST, Pmode, 1, r3, Pmode);
++	  emit_library_call_value (tga, dest, LCT_CONST, Pmode,
++				   1, const0_rtx, Pmode);
+ 
++	  r3 = gen_rtx_REG (Pmode, 3);
+ 	  if (DEFAULT_ABI == ABI_AIX && TARGET_64BIT)
+ 	    insn = gen_tls_gd_aix64 (r3, got, addr, tga, const0_rtx);
+ 	  else if (DEFAULT_ABI == ABI_AIX && !TARGET_64BIT)
+@@ -5446,11 +5447,12 @@
+ 	}
+       else if (model == TLS_MODEL_LOCAL_DYNAMIC)
+ 	{
+-	  r3 = gen_rtx_REG (Pmode, 3);
+ 	  tga = rs6000_tls_get_addr ();
+ 	  tmp1 = gen_reg_rtx (Pmode);
+-	  emit_library_call_value (tga, tmp1, LCT_CONST, Pmode, 1, r3, Pmode);
++	  emit_library_call_value (tga, tmp1, LCT_CONST, Pmode,
++				   1, const0_rtx, Pmode);
+ 
++	  r3 = gen_rtx_REG (Pmode, 3);
+ 	  if (DEFAULT_ABI == ABI_AIX && TARGET_64BIT)
+ 	    insn = gen_tls_ld_aix64 (r3, got, tga, const0_rtx);
+ 	  else if (DEFAULT_ABI == ABI_AIX && !TARGET_64BIT)
+@@ -6694,7 +6696,7 @@
+ 
+ /* Nonzero if we can use an AltiVec register to pass this arg.  */
+ #define USE_ALTIVEC_FOR_ARG_P(CUM,MODE,TYPE,NAMED)		\
+-  ((ALTIVEC_VECTOR_MODE (MODE) || VSX_VECTOR_MODE (MODE))	\
++  (ALTIVEC_OR_VSX_VECTOR_MODE (MODE)				\
+    && (CUM)->vregno <= ALTIVEC_ARG_MAX_REG			\
+    && TARGET_ALTIVEC_ABI					\
+    && (NAMED))
+@@ -6920,7 +6922,7 @@
+    existing library interfaces.
+ 
+    Doubleword align SPE vectors.
+-   Quadword align Altivec vectors.
++   Quadword align Altivec/VSX vectors.
+    Quadword align large synthetic vector types.   */
+ 
+ int
+@@ -6937,7 +6939,7 @@
+ 	       && int_size_in_bytes (type) >= 8
+ 	       && int_size_in_bytes (type) < 16))
+     return 64;
+-  else if ((ALTIVEC_VECTOR_MODE (mode) || VSX_VECTOR_MODE (mode))
++  else if (ALTIVEC_OR_VSX_VECTOR_MODE (mode)
+ 	   || (type && TREE_CODE (type) == VECTOR_TYPE
+ 	       && int_size_in_bytes (type) >= 16))
+     return 128;
+@@ -7082,8 +7084,7 @@
+     cum->nargs_prototype--;
+ 
+   if (TARGET_ALTIVEC_ABI
+-      && (ALTIVEC_VECTOR_MODE (mode)
+-	  || VSX_VECTOR_MODE (mode)
++      && (ALTIVEC_OR_VSX_VECTOR_MODE (mode)
+ 	  || (type && TREE_CODE (type) == VECTOR_TYPE
+ 	      && int_size_in_bytes (type) == 16)))
+     {
+@@ -7677,8 +7678,7 @@
+     else
+       return gen_rtx_REG (mode, cum->vregno);
+   else if (TARGET_ALTIVEC_ABI
+-	   && (ALTIVEC_VECTOR_MODE (mode)
+-	       || VSX_VECTOR_MODE (mode)
++	   && (ALTIVEC_OR_VSX_VECTOR_MODE (mode)
+ 	       || (type && TREE_CODE (type) == VECTOR_TYPE
+ 		   && int_size_in_bytes (type) == 16)))
+     {
+@@ -18280,7 +18280,7 @@
+ 
+   /* Some cases that need register indexed addressing.  */
+   if ((TARGET_ALTIVEC_ABI && ALTIVEC_VECTOR_MODE (mode))
+-      || (TARGET_VSX && VSX_VECTOR_MODE (mode))
++      || (TARGET_VSX && ALTIVEC_OR_VSX_VECTOR_MODE (mode))
+       || (TARGET_E500_DOUBLE && mode == DFmode)
+       || (TARGET_SPE_ABI
+ 	  && SPE_VECTOR_MODE (mode)
+@@ -25565,14 +25565,13 @@
+   else if (TREE_CODE (valtype) == COMPLEX_TYPE
+ 	   && targetm.calls.split_complex_arg)
+     return rs6000_complex_function_value (mode);
++  /* VSX is a superset of Altivec and adds V2DImode/V2DFmode.  Since the same
++     return register is used in both cases, and we won't see V2DImode/V2DFmode
++     for pure altivec, combine the two cases.  */
+   else if (TREE_CODE (valtype) == VECTOR_TYPE
+ 	   && TARGET_ALTIVEC && TARGET_ALTIVEC_ABI
+-	   && ALTIVEC_VECTOR_MODE (mode))
++	   && ALTIVEC_OR_VSX_VECTOR_MODE (mode))
+     regno = ALTIVEC_ARG_RETURN;
+-  else if (TREE_CODE (valtype) == VECTOR_TYPE
+-	   && TARGET_VSX && TARGET_ALTIVEC_ABI
+-	   && VSX_VECTOR_MODE (mode))
+-    regno = ALTIVEC_ARG_RETURN;
+   else if (TARGET_E500_DOUBLE && TARGET_HARD_FLOAT
+ 	   && (mode == DFmode || mode == DCmode
+ 	       || mode == TFmode || mode == TCmode))
+@@ -25611,12 +25610,12 @@
+ 	   && TARGET_HARD_FLOAT && TARGET_FPRS
+            && ((TARGET_SINGLE_FLOAT && mode == SFmode) || TARGET_DOUBLE_FLOAT))
+     regno = FP_ARG_RETURN;
+-  else if (ALTIVEC_VECTOR_MODE (mode)
++  /* VSX is a superset of Altivec and adds V2DImode/V2DFmode.  Since the same
++     return register is used in both cases, and we won't see V2DImode/V2DFmode
++     for pure altivec, combine the two cases.  */
++  else if (ALTIVEC_OR_VSX_VECTOR_MODE (mode)
+ 	   && TARGET_ALTIVEC && TARGET_ALTIVEC_ABI)
+     regno = ALTIVEC_ARG_RETURN;
+-  else if (VSX_VECTOR_MODE (mode)
+-	   && TARGET_VSX && TARGET_ALTIVEC_ABI)
+-    regno = ALTIVEC_ARG_RETURN;
+   else if (COMPLEX_MODE_P (mode) && targetm.calls.split_complex_arg)
+     return rs6000_complex_function_value (mode);
+   else if (TARGET_E500_DOUBLE && TARGET_HARD_FLOAT
+
+Property changes on: gcc/config/rs6000/rs6000.c
+___________________________________________________________________
+Added: svn:mergeinfo
+   Merged /trunk/gcc/config/rs6000/rs6000.c:r162404,173624
+
+Index: gcc/config/rs6000/rs6000.h
+===================================================================
+--- a/src/gcc/config/rs6000/rs6000.h	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/config/rs6000/rs6000.h	(.../branches/gcc-4_5-branch)
+@@ -1038,10 +1038,9 @@
+ 
+ /* When setting up caller-save slots (MODE == VOIDmode) ensure we allocate
+    enough space to account for vectors in FP regs. */
+-#define HARD_REGNO_CALLER_SAVE_MODE(REGNO, NREGS, MODE)	\
+-  (TARGET_VSX						\
+-   && ((MODE) == VOIDmode || VSX_VECTOR_MODE (MODE)	\
+-       || ALTIVEC_VECTOR_MODE (MODE))			\
++#define HARD_REGNO_CALLER_SAVE_MODE(REGNO, NREGS, MODE)			\
++  (TARGET_VSX								\
++   && ((MODE) == VOIDmode || ALTIVEC_OR_VSX_VECTOR_MODE (MODE))		\
+    && FP_REGNO_P (REGNO)				\
+    ? V2DFmode						\
+    : choose_hard_reg_mode ((REGNO), (NREGS), false))
+@@ -1057,25 +1056,16 @@
+ 	 ((MODE) == V4SFmode		\
+ 	  || (MODE) == V2DFmode)	\
+ 
+-#define VSX_SCALAR_MODE(MODE)		\
+-	((MODE) == DFmode)
+-
+-#define VSX_MODE(MODE)			\
+-	(VSX_VECTOR_MODE (MODE)		\
+-	 || VSX_SCALAR_MODE (MODE))
+-
+-#define VSX_MOVE_MODE(MODE)		\
+-	(VSX_VECTOR_MODE (MODE)		\
+-	 || VSX_SCALAR_MODE (MODE)	\
+-	 || ALTIVEC_VECTOR_MODE (MODE)	\
+-	 || (MODE) == TImode)
+-
+ #define ALTIVEC_VECTOR_MODE(MODE)	\
+ 	 ((MODE) == V16QImode		\
+ 	  || (MODE) == V8HImode		\
+ 	  || (MODE) == V4SFmode		\
+ 	  || (MODE) == V4SImode)
+ 
++#define ALTIVEC_OR_VSX_VECTOR_MODE(MODE)				\
++  (ALTIVEC_VECTOR_MODE (MODE) || VSX_VECTOR_MODE (MODE)			\
++   || (MODE) == V2DImode)
++
+ #define SPE_VECTOR_MODE(MODE)		\
+ 	((MODE) == V4HImode          	\
+          || (MODE) == V2SFmode          \
+@@ -1118,10 +1108,10 @@
+    ? ALTIVEC_VECTOR_MODE (MODE2)		\
+    : ALTIVEC_VECTOR_MODE (MODE2)		\
+    ? ALTIVEC_VECTOR_MODE (MODE1)		\
+-   : VSX_VECTOR_MODE (MODE1)			\
+-   ? VSX_VECTOR_MODE (MODE2)			\
+-   : VSX_VECTOR_MODE (MODE2)			\
+-   ? VSX_VECTOR_MODE (MODE1)			\
++   : ALTIVEC_OR_VSX_VECTOR_MODE (MODE1)		\
++   ? ALTIVEC_OR_VSX_VECTOR_MODE (MODE2)		\
++   : ALTIVEC_OR_VSX_VECTOR_MODE (MODE2)		\
++   ? ALTIVEC_OR_VSX_VECTOR_MODE (MODE1)		\
+    : 1)
+ 
+ /* Post-reload, we can't use any new AltiVec registers, as we already
+
+Property changes on: gcc/config/rs6000/rs6000.h
+___________________________________________________________________
+Added: svn:mergeinfo
+   Merged /trunk/gcc/config/rs6000/rs6000.h:r162404,173624
+
+Index: gcc/config/arm/arm.c
+===================================================================
+--- a/src/gcc/config/arm/arm.c	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/config/arm/arm.c	(.../branches/gcc-4_5-branch)
+@@ -18237,7 +18237,7 @@
+   rtx tmp1 = gen_reg_rtx (mode);
+   rtx tmp2 = gen_reg_rtx (mode);
+ 
+-  emit_insn (intfn (tmp1, op1, tmp2, op2));
++  emit_insn (intfn (tmp1, op1, op2, tmp2));
+ 
+   emit_move_insn (mem, tmp1);
+   mem = adjust_address (mem, mode, GET_MODE_SIZE (mode));
+Index: gcc/config/arm/neon.md
+===================================================================
+--- a/src/gcc/config/arm/neon.md	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/config/arm/neon.md	(.../branches/gcc-4_5-branch)
+@@ -680,7 +680,7 @@
+           (match_operand:SI 2 "immediate_operand" "i")))]
+   "TARGET_NEON"
+ {
+-  int elt = ffs ((int) INTVAL (operands[2]) - 1);
++  int elt = ffs ((int) INTVAL (operands[2])) - 1;
+   if (BYTES_BIG_ENDIAN)
+     elt = GET_MODE_NUNITS (<MODE>mode) - 1 - elt;
+   operands[2] = GEN_INT (elt);
+@@ -3895,13 +3895,14 @@
+ 
+ (define_insn "neon_vtrn<mode>_internal"
+   [(set (match_operand:VDQW 0 "s_register_operand" "=w")
+-	(unspec:VDQW [(match_operand:VDQW 1 "s_register_operand" "0")]
+-		     UNSPEC_VTRN1))
+-   (set (match_operand:VDQW 2 "s_register_operand" "=w")
+-        (unspec:VDQW [(match_operand:VDQW 3 "s_register_operand" "2")]
+-		     UNSPEC_VTRN2))]
++        (unspec:VDQW [(match_operand:VDQW 1 "s_register_operand" "0")
++                      (match_operand:VDQW 2 "s_register_operand" "w")]
++                     UNSPEC_VTRN1))
++   (set (match_operand:VDQW 3 "s_register_operand" "=2")
++         (unspec:VDQW [(match_dup 1) (match_dup 2)]
++                     UNSPEC_VTRN2))]
+   "TARGET_NEON"
+-  "vtrn.<V_sz_elem>\t%<V_reg>0, %<V_reg>2"
++  "vtrn.<V_sz_elem>\t%<V_reg>0, %<V_reg>3"
+   [(set (attr "neon_type")
+       (if_then_else (ne (symbol_ref "<Is_d_reg>") (const_int 0))
+                     (const_string "neon_bp_simple")
+@@ -3921,13 +3922,14 @@
+ 
+ (define_insn "neon_vzip<mode>_internal"
+   [(set (match_operand:VDQW 0 "s_register_operand" "=w")
+-	(unspec:VDQW [(match_operand:VDQW 1 "s_register_operand" "0")]
+-		     UNSPEC_VZIP1))
+-   (set (match_operand:VDQW 2 "s_register_operand" "=w")
+-        (unspec:VDQW [(match_operand:VDQW 3 "s_register_operand" "2")]
+-		     UNSPEC_VZIP2))]
++        (unspec:VDQW [(match_operand:VDQW 1 "s_register_operand" "0")
++                      (match_operand:VDQW 2 "s_register_operand" "w")]
++                     UNSPEC_VZIP1))
++   (set (match_operand:VDQW 3 "s_register_operand" "=2")
++        (unspec:VDQW [(match_dup 1) (match_dup 2)]
++                     UNSPEC_VZIP2))]
+   "TARGET_NEON"
+-  "vzip.<V_sz_elem>\t%<V_reg>0, %<V_reg>2"
++  "vzip.<V_sz_elem>\t%<V_reg>0, %<V_reg>3"
+   [(set (attr "neon_type")
+       (if_then_else (ne (symbol_ref "<Is_d_reg>") (const_int 0))
+                     (const_string "neon_bp_simple")
+@@ -3947,13 +3949,14 @@
+ 
+ (define_insn "neon_vuzp<mode>_internal"
+   [(set (match_operand:VDQW 0 "s_register_operand" "=w")
+-	(unspec:VDQW [(match_operand:VDQW 1 "s_register_operand" "0")]
++        (unspec:VDQW [(match_operand:VDQW 1 "s_register_operand" "0")
++                      (match_operand:VDQW 2 "s_register_operand" "w")]
+                      UNSPEC_VUZP1))
+-   (set (match_operand:VDQW 2 "s_register_operand" "=w")
+-        (unspec:VDQW [(match_operand:VDQW 3 "s_register_operand" "2")]
+-		     UNSPEC_VUZP2))]
++   (set (match_operand:VDQW 3 "s_register_operand" "=2")
++        (unspec:VDQW [(match_dup 1) (match_dup 2)]
++                     UNSPEC_VUZP2))]
+   "TARGET_NEON"
+-  "vuzp.<V_sz_elem>\t%<V_reg>0, %<V_reg>2"
++  "vuzp.<V_sz_elem>\t%<V_reg>0, %<V_reg>3"
+   [(set (attr "neon_type")
+       (if_then_else (ne (symbol_ref "<Is_d_reg>") (const_int 0))
+                     (const_string "neon_bp_simple")
+Index: gcc/config/pa/predicates.md
+===================================================================
+--- a/src/gcc/config/pa/predicates.md	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/config/pa/predicates.md	(.../branches/gcc-4_5-branch)
+@@ -411,12 +411,16 @@
+ 
+ ;; True iff depi can be used to compute (reg | OP).
+ 
+-(define_predicate "ior_operand"
+-  (match_code "const_int")
+-{
+-  return (GET_CODE (op) == CONST_INT && ior_mask_p (INTVAL (op)));
+-})
++(define_predicate "cint_ior_operand"
++  (and (match_code "const_int")
++       (match_test "ior_mask_p (INTVAL (op))")))
+ 
++;; True iff OP can be used to compute (reg | OP).
++
++(define_predicate "reg_or_cint_ior_operand"
++  (ior (match_operand 0 "register_operand")
++       (match_operand 0 "cint_ior_operand")))
++
+ ;; True iff OP is a CONST_INT of the forms 0...0xxxx or
+ ;; 0...01...1xxxx. Such values can be the left hand side x in (x <<
+ ;; r), using the zvdepi instruction.
+Index: gcc/config/pa/pa.md
+===================================================================
+--- a/src/gcc/config/pa/pa.md	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/config/pa/pa.md	(.../branches/gcc-4_5-branch)
+@@ -5686,7 +5686,7 @@
+ (define_expand "iordi3"
+   [(set (match_operand:DI 0 "register_operand" "")
+ 	(ior:DI (match_operand:DI 1 "register_operand" "")
+-		(match_operand:DI 2 "ior_operand" "")))]
++		(match_operand:DI 2 "reg_or_cint_ior_operand" "")))]
+   ""
+   "
+ {
+@@ -5707,7 +5707,7 @@
+ (define_insn ""
+   [(set (match_operand:DI 0 "register_operand" "=r,r")
+ 	(ior:DI (match_operand:DI 1 "register_operand" "0,0")
+-		(match_operand:DI 2 "ior_operand" "M,i")))]
++		(match_operand:DI 2 "cint_ior_operand" "M,i")))]
+   "TARGET_64BIT"
+   "* return output_64bit_ior (operands); "
+   [(set_attr "type" "binary,shift")
+@@ -5726,19 +5726,14 @@
+ (define_expand "iorsi3"
+   [(set (match_operand:SI 0 "register_operand" "")
+ 	(ior:SI (match_operand:SI 1 "register_operand" "")
+-		(match_operand:SI 2 "arith32_operand" "")))]
++		(match_operand:SI 2 "reg_or_cint_ior_operand" "")))]
+   ""
+-  "
+-{
+-  if (! (ior_operand (operands[2], SImode)
+-         || register_operand (operands[2], SImode)))
+-    operands[2] = force_reg (SImode, operands[2]);
+-}")
++  "")
+ 
+ (define_insn ""
+   [(set (match_operand:SI 0 "register_operand" "=r,r")
+ 	(ior:SI (match_operand:SI 1 "register_operand" "0,0")
+-		(match_operand:SI 2 "ior_operand" "M,i")))]
++		(match_operand:SI 2 "cint_ior_operand" "M,i")))]
+   ""
+   "* return output_ior (operands); "
+   [(set_attr "type" "binary,shift")
+Index: gcc/config/pa/pa-protos.h
+===================================================================
+--- a/src/gcc/config/pa/pa-protos.h	(.../tags/gcc_4_5_3_release)
++++ b/src/gcc/config/pa/pa-protos.h	(.../branches/gcc-4_5-branch)
+@@ -79,7 +79,6 @@
+ extern int prefetch_cc_operand (rtx, enum machine_mode);
+ extern int prefetch_nocc_operand (rtx, enum machine_mode);
+ extern int and_operand (rtx, enum machine_mode);
+-extern int ior_operand (rtx, enum machine_mode);
+ extern int arith32_operand (rtx, enum machine_mode);
+ extern int uint32_operand (rtx, enum machine_mode);
+ extern int reg_before_reload_operand (rtx, enum machine_mode);
+@@ -94,7 +93,6 @@
+ extern int fmpyaddoperands (rtx *);
+ extern int fmpysuboperands (rtx *);
+ extern int call_operand_address (rtx, enum machine_mode);
+-extern int ior_operand (rtx, enum machine_mode);
+ extern void emit_bcond_fp (rtx[]);
+ extern int emit_move_sequence (rtx *, enum machine_mode, rtx);
+ extern int emit_hpdiv_const (rtx *, int);
+Index: libffi/src/alpha/osf.S
+===================================================================
+--- a/src/libffi/src/alpha/osf.S	(.../tags/gcc_4_5_3_release)
++++ b/src/libffi/src/alpha/osf.S	(.../branches/gcc-4_5-branch)
+@@ -1,5 +1,5 @@
+ /* -----------------------------------------------------------------------
+-   osf.S - Copyright (c) 1998, 2001, 2007, 2008 Red Hat
++   osf.S - Copyright (c) 1998, 2001, 2007, 2008, 2011 Red Hat
+    
+    Alpha/OSF Foreign Function Interface 
+ 
+@@ -299,33 +299,51 @@
+ #endif
+ 
+ #ifdef __ELF__
++# define UA_SI		.4byte
++# define FDE_ENCODING	0x1b	/* pcrel sdata4 */
++# define FDE_ENCODE(X)	.4byte X-.
++# define FDE_ARANGE(X)	.4byte X
++#elif defined __osf__
++# define UA_SI		.align 0; .long
++# define FDE_ENCODING	0x50	/* aligned absolute */
++# define FDE_ENCODE(X)	.align 3; .quad X
++# define FDE_ARANGE(X)	.align 0; .quad X
++#endif
++
++#ifdef __ELF__
+ 	.section	.eh_frame,EH_FRAME_FLAGS,@progbits
++#elif defined __osf__
++	.data
++	.align 3
++	.globl _GLOBAL__F_ffi_call_osf
++_GLOBAL__F_ffi_call_osf:
++#endif
+ __FRAME_BEGIN__:
+-	.4byte	$LECIE1-$LSCIE1	# Length of Common Information Entry
++	UA_SI	$LECIE1-$LSCIE1	# Length of Common Information Entry
+ $LSCIE1:
+-	.4byte	0x0		# CIE Identifier Tag
++	UA_SI	0x0		# CIE Identifier Tag
+ 	.byte	0x1		# CIE Version
+ 	.ascii "zR\0"		# CIE Augmentation
+ 	.byte	0x1		# uleb128 0x1; CIE Code Alignment Factor
+ 	.byte	0x78		# sleb128 -8; CIE Data Alignment Factor
+ 	.byte	26		# CIE RA Column
+ 	.byte	0x1		# uleb128 0x1; Augmentation size
+-	.byte	0x1b		# FDE Encoding (pcrel sdata4)
++	.byte	FDE_ENCODING	# FDE Encoding
+ 	.byte	0xc		# DW_CFA_def_cfa
+ 	.byte	30		# uleb128 column 30
+ 	.byte	0		# uleb128 offset 0
+ 	.align 3
+ $LECIE1:
+ $LSFDE1:
+-	.4byte	$LEFDE1-$LASFDE1		# FDE Length
++	UA_SI	$LEFDE1-$LASFDE1		# FDE Length
+ $LASFDE1:
+-	.4byte	$LASFDE1-__FRAME_BEGIN__	# FDE CIE offset
+-	.4byte	$LFB1-.		# FDE initial location
+-	.4byte	$LFE1-$LFB1	# FDE address range
++	UA_SI	$LASFDE1-__FRAME_BEGIN__	# FDE CIE offset
++	FDE_ENCODE($LFB1)			# FDE initial location
++	FDE_ARANGE($LFE1-$LFB1)			# FDE address range
+ 	.byte	0x0		# uleb128 0x0; Augmentation size
+ 
+ 	.byte	0x4		# DW_CFA_advance_loc4
+-	.4byte	$LCFI1-$LFB1
++	UA_SI	$LCFI1-$LFB1
+ 	.byte	0x9a		# DW_CFA_offset, column 26
+ 	.byte	4		# uleb128 4*-8
+ 	.byte	0x8f		# DW_CFA_offset, column 15
+@@ -335,32 +353,35 @@
+ 	.byte	32		# uleb128 offset 32
+ 
+ 	.byte	0x4		# DW_CFA_advance_loc4
+-	.4byte	$LCFI2-$LCFI1
++	UA_SI	$LCFI2-$LCFI1
+ 	.byte	0xda		# DW_CFA_restore, column 26
+ 	.align 3
+ $LEFDE1:
+ 
+ $LSFDE3:
+-	.4byte	$LEFDE3-$LASFDE3		# FDE Length
++	UA_SI	$LEFDE3-$LASFDE3		# FDE Length
+ $LASFDE3:
+-	.4byte	$LASFDE3-__FRAME_BEGIN__	# FDE CIE offset
+-	.4byte	$LFB2-.		# FDE initial location
+-	.4byte	$LFE2-$LFB2	# FDE address range
++	UA_SI	$LASFDE3-__FRAME_BEGIN__	# FDE CIE offset
++	FDE_ENCODE($LFB2)			# FDE initial location
++	FDE_ARANGE($LFE2-$LFB2)			# FDE address range
+ 	.byte	0x0		# uleb128 0x0; Augmentation size
+ 
+ 	.byte	0x4		# DW_CFA_advance_loc4
+-	.4byte	$LCFI5-$LFB2
++	UA_SI	$LCFI5-$LFB2
+ 	.byte	0xe		# DW_CFA_def_cfa_offset
+ 	.byte	0x80,0x1	# uleb128 128
+ 
+ 	.byte	0x4		# DW_CFA_advance_loc4
+-	.4byte	$LCFI6-$LCFI5
++	UA_SI	$LCFI6-$LCFI5
+ 	.byte	0x9a		# DW_CFA_offset, column 26
+ 	.byte	16		# uleb128 offset 16*-8
+ 	.align 3
+ $LEFDE3:
++#if defined __osf__
++	.align 0
++	.long	0		# End of Table
++#endif
+ 
+-#ifdef __linux__
++#if defined __ELF__ && defined __linux__
+ 	.section	.note.GNU-stack,"",@progbits
+ #endif
+-#endif
+Index: libffi/ChangeLog
+===================================================================
+--- a/src/libffi/ChangeLog	(.../tags/gcc_4_5_3_release)
++++ b/src/libffi/ChangeLog	(.../branches/gcc-4_5-branch)
+@@ -1,3 +1,13 @@
++2011-05-02  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
++
++	Backport from mainline:
++	2011-04-29  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
++
++	* src/alpha/osf.S (UA_SI, FDE_ENCODING, FDE_ENCODE, FDE_ARANGE):
++	Define.
++	Use them to handle ELF vs. ECOFF differences.
++	[__osf__] (_GLOBAL__F_ffi_call_osf): Define.
++
+ 2011-04-28  Release Manager
+ 
+ 	* GCC 4.5.3 released.
