@@ -1,0 +1,21 @@
+# DP: On linux targets pass --no-add-needed to the linker.
+
+2010-02-08  Roland McGrath  <roland@redhat.com>
+
+	* config/rs6000/sysv4.h (LINK_EH_SPEC): Pass --no-add-needed to the
+	linker.
+	* config/linux.h (LINK_EH_SPEC): Likewise.
+	* config/alpha/elf.h (LINK_EH_SPEC): Likewise.
+	* config/ia64/linux.h (LINK_EH_SPEC): Likewise.
+
+--- ./src/gcc/config/linux.h~	2009-04-12 01:39:59.000000000 +0200
++++ ./src/gcc/config/linux.h	2010-04-06 02:32:19.391087422 +0200
+@@ -89,7 +89,7 @@
+     } while (0)
+ 
+ #if defined(HAVE_LD_EH_FRAME_HDR)
+-#define LINK_EH_SPEC "%{!static:--eh-frame-hdr} "
++#define LINK_EH_SPEC "--no-add-needed %{!static:--eh-frame-hdr} "
+ #endif
+ 
+ /* Define this so we can compile MS code for use with WINE.  */
