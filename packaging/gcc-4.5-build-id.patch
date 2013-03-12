@@ -1,0 +1,11 @@
+--- gcc/config/linux.h.orig	2011-08-02 17:18:07.780372000 +0900
++++ gcc/config/linux.h	2011-08-02 17:20:02.363372001 +0900
+@@ -89,7 +89,7 @@
+     } while (0)
+ 
+ #if defined(HAVE_LD_EH_FRAME_HDR)
+-#define LINK_EH_SPEC "--no-add-needed --as-needed %{!static:--eh-frame-hdr} "
++#define LINK_EH_SPEC "--no-add-needed --as-needed %{!static:--eh-frame-hdr} %{!r:--build-id} "
+ #endif
+ 
+ /* Define this so we can compile MS code for use with WINE.  */

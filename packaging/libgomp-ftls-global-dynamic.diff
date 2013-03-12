@@ -1,0 +1,13 @@
+diff --git libgomp/configure.tgt libgomp/configure.tgt
+index fd55277..1a1028b 100644
+--- libgomp/configure.tgt
++++ libgomp/configure.tgt
+@@ -15,7 +15,7 @@ if test $gcc_cv_have_tls = yes ; then
+   case "${target}" in
+ 
+     *-*-linux*)
+-	XCFLAGS="${XCFLAGS} -ftls-model=initial-exec"
++	XCFLAGS="${XCFLAGS} -ftls-model=global-dynamic"
+ 	;;
+   esac
+ fi

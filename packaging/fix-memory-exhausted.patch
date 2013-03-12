@@ -1,0 +1,10 @@
+--- gcc-4.5.3.orig/gcc/Makefile.in	2011-08-08 10:10:44.893372000 +0900
++++ gcc-4.5.3/gcc/Makefile.in	2011-08-08 10:28:09.074372002 +0900
+@@ -3410,6 +3410,7 @@
+ insn-attrtab.o : insn-attrtab.c $(CONFIG_H) $(SYSTEM_H) coretypes.h	\
+   $(TM_H) $(RTL_H) $(REGS_H) $(REAL_H) output.h $(INSN_ATTR_H)		\
+   insn-config.h $(TOPLEV_H) $(RECOG_H) $(TM_P_H) $(FLAGS_H)
++	$(COMPILER) -c $(ALL_COMPILERFLAGS) -O0 $(ALL_CPPFLAGS) $< $(OUTPUT_OPTION)
+ insn-automata.o : insn-automata.c $(CONFIG_H) $(SYSTEM_H) coretypes.h	\
+   $(TM_H) $(RTL_H) $(REGS_H) $(REAL_H) output.h $(INSN_ATTR_H)		\
+   insn-config.h $(TOPLEV_H) $(RECOG_H) $(TM_P_H) $(FLAGS_H)
