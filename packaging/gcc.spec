@@ -15,7 +15,7 @@ Name: gcc
 # Sledge Hammer: Trust me, I know what I'm doing. 
 AutoReqProv: 0
 AutoReq: false
-BuildRequires: rpmlint-Moblin rpmlint-mini post-build-checks
+#!BuildIgnore: rpmlint-Moblin rpmlint-mini post-build-checks
 # cross platform
 %define cross_gcc_target_platform %{crossarch}-tizen-linux-gnueabi
 # gcc_target_platform holds the host (executing the compiler)

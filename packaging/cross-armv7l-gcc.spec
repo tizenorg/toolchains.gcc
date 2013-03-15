@@ -15,7 +15,7 @@ Name: cross-armv7l-gcc
 # Sledge Hammer: Trust me, I know what I'm doing. 
 AutoReqProv: 0
 AutoReq: false
-BuildRequires: -rpmlint-Moblin -rpmlint-mini -post-build-checks
+#!BuildIgnore: rpmlint-Moblin rpmlint-mini post-build-checks
 # cross platform
 %define cross_gcc_target_platform %{crossarch}-tizen-linux-gnueabi
 # gcc_target_platform holds the host (executing the compiler)
@@ -197,6 +197,7 @@ Patch28:armhf-triplet-backport.diff
 Patch40: gcc-4.5.1-arm-stack-protect-libgcc.patch
 Patch41: libgcc_post_upgrade.c.arm.patch
 Patch42: fix-memory-exhausted.patch
+Patch43: libgomp-arm-futex.diff
 
 Patch100: incorrect-immediate-for-movt.diff
 Patch101: libgomp-ftls-global-dynamic.diff
@@ -380,6 +381,7 @@ This is one set of libraries which support 64bit multilib on top of
 %ifarch %arm
 %patch42 -p1
 %endif
+%patch43 -p1
 
 %patch100 -p0
 %patch101 -p0
@@ -903,6 +905,7 @@ rm -rf %{buildroot}
 %dir %{_prefix}/libexec/getconf
 %{_prefix}/libexec/getconf/default
 %doc gcc/README*  gcc/COPYING*
+%manifest gcc.manifest
 
 %files -n cpp 
 %defattr(-,root,root,-)
@@ -913,6 +916,7 @@ rm -rf %{buildroot}
 %dir %{_prefix}/libexec/gcc/%{gcc_target_platform}
 %dir %{_prefix}/libexec/gcc/%{gcc_target_platform}/%{gcc_version}
 %{_prefix}/libexec/gcc/%{gcc_target_platform}/%{gcc_version}/cc1
+%manifest cpp.manifest
 
 %files -n libgcc
 %defattr(-,root,root,-)
@@ -921,6 +925,7 @@ rm -rf %{buildroot}
 /%{_libdir}/libgcc_s.*
 %{_prefix}/sbin/libgcc_post_upgrade
 %doc gcc/COPYING.LIB
+%manifest libgcc.manifest
 
 # For ARM port
 %ifarch %{arm}
@@ -952,6 +957,7 @@ rm -rf %{buildroot}
 %{_prefix}/lib/gcc/%{gcc_target_platform}/%{gcc_version}/libstdc++.so
 %{_prefix}/lib/gcc/%{gcc_target_platform}/%{gcc_version}/libsupc++.a
 %endif
+%manifest gcc-c++.manifest
 
 %files -n libstdc++
 %defattr(-,root,root,-)
@@ -963,6 +969,7 @@ rm -rf %{buildroot}
 %{_datadir}/gdb/auto-load/%{_prefix}/%{_lib}/libstdc*gdb.py*
 %dir %{_prefix}/share/gcc-%{gcc_version}
 %{_prefix}/share/gcc-%{gcc_version}/python
+%manifest libstdc++.manifest
 
 %files -n libstdc++-devel
 %defattr(-,root,root,-)
@@ -983,11 +990,13 @@ rm -rf %{buildroot}
 %files -n libgomp
 %defattr(-,root,root,-)
 %{_prefix}/%{_lib}/libgomp.*
+%manifest libgomp.manifest
 
 %files -n libmudflap
 %defattr(-,root,root,-)
 %{_prefix}/%{_lib}/libmudflap.*
 %{_prefix}/%{_lib}/libmudflapth.*
+%manifest libmudflap.manifest
 
 %files -n libmudflap-devel
 %defattr(-,root,root,-)
@@ -1007,6 +1016,7 @@ rm -rf %{buildroot}
 # cross
 # \/\/\/
 %files
+%manifest gcc.manifest
 %defattr(-,root,root,-)
 %{_prefix}
 # /\/\/\
