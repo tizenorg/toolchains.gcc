@@ -513,6 +513,12 @@ cd ..
 %install
 rm -fr %{buildroot}
 
+mkdir -p %{buildroot}/usr/share/license
+cp gcc/COPYING %{buildroot}/usr/share/license/%{name}
+cat gcc/COPYING.LIB >> %{buildroot}/usr/share/license/%{name}
+cat gcc/COPYING3 >> %{buildroot}/usr/share/license/%{name}
+cat gcc/COPYING3.LIB >> %{buildroot}/usr/share/license/%{name}
+
 cd obj-%{gcc_target_platform}
 
 %if !%{crossbuild}
@@ -905,6 +911,7 @@ rm -rf %{buildroot}
 %dir %{_prefix}/libexec/getconf
 %{_prefix}/libexec/getconf/default
 %doc gcc/README*  gcc/COPYING*
+/usr/share/license/%{name}
 %manifest gcc.manifest
 
 %files -n cpp 
