@@ -1,4 +1,7 @@
 # Combined gcc / cross-armv*-gcc(-accel) specfile
+%ifarch x86_64
+%define x64 x64
+%endif
 Name: cross-armv7nhl-gcc
 
 # crossbuild / accelerator section
@@ -58,39 +61,39 @@ BuildRequires: cross-armv7nhl-kernel-headers cross-armv7nhl-binutils
 %define crossextraconfig --with-float=hard --with-fpu=neon --with-arch=armv7-a
 %endif
 # Fixme: see above
-%if "%{name}" == "cross-armv5tel-gcc-accel"
+%if "%{name}" == "cross-armv5tel-gcc-accel-x86" || "%{name}" == "cross-armv5tel-gcc-accel-x64"
 BuildRequires: cross-armv5tel-eglibc cross-armv5tel-eglibc-devel cross-armv5tel-eglibc-headers
 BuildRequires: cross-armv5tel-kernel-headers cross-armv5tel-binutils
 %define crossextraconfig %{nil}
 %endif
-%if "%{name}" == "cross-armv6l-gcc-accel"
+%if "%{name}" == "cross-armv6l-gcc-accel-x86" || "%{name}" == "cross-armv6l-gcc-accel-x64"
 BuildRequires: cross-armv6l-eglibc cross-armv6l-eglibc-devel cross-armv6l-eglibc-headers
 BuildRequires: cross-armv6l-kernel-headers cross-armv6l-binutils
 %define crossextraconfig %{nil}
 %endif
-%if "%{name}" == "cross-armv7l-gcc-accel"
+%if "%{name}" == "cross-armv7l-gcc-accel-x86" || "%{name}" == "cross-armv7l-gcc-accel-x64"
 BuildRequires: cross-armv7l-eglibc cross-armv7l-eglibc-devel cross-armv7l-eglibc-headers
 BuildRequires: cross-armv7l-kernel-headers cross-armv7l-binutils
 %define crossextraconfig --with-float=softfp --with-fpu=vfpv3 --with-arch=armv7-a
 %endif
-%if "%{name}" == "cross-armv7hl-gcc-accel"
+%if "%{name}" == "cross-armv7hl-gcc-accel-x86" || "%{name}" == "cross-armv7hl-gcc-accel-x64"
 BuildRequires: cross-armv7hl-eglibc cross-armv7hl-eglibc-devel cross-armv7hl-eglibc-headers
 BuildRequires: cross-armv7hl-kernel-headers cross-armv7hl-binutils
 %define crossextraconfig --with-float=hard --with-fpu=vfpv3-d16 --with-arch=armv7-a
 %endif
-%if "%{name}" == "cross-armv7nhl-gcc-accel"
+%if "%{name}" == "cross-armv7nhl-gcc-accel-x86" || "%{name}" == "cross-armv7nhl-gcc-accel-x64"
 BuildRequires: cross-armv7nhl-eglibc cross-armv7nhl-eglibc-devel cross-armv7nhl-eglibc-headers
 BuildRequires: cross-armv7nhl-kernel-headers cross-armv7nhl-binutils
 %define crossextraconfig --with-float=hard --with-fpu=neon --with-arch=armv7-a
 %endif
 # single target atm.
-ExclusiveArch: %ix86
+ExclusiveArch: %ix86 x86_64
 #
 # special handling for Tizen ARM build acceleration
 # cross-armv*-gcc-accel
-%if "%(echo %{name} | sed -e "s/cross-.*-gcc-\\(.*\\)/\\1/")" == "accel"
+%if "%(echo %{name} | sed -e "s/cross-.*-gcc-\\(.*\\)-.*/\\1/")" == "accel"
 # cross architecture
-%define crossarch %(echo %{name} | sed -e "s/cross-\\(.*\\)-gcc-accel/\\1/")
+%define crossarch %(echo %{name} | sed -e "s/cross-\\(.*\\)-gcc-accel-.*/\\1/")
 # cross target platform
 %define cross_gcc_target_platform %{crossarch}-tizen-linux-gnueabi
 # prefix - as it's going to "replace" the original compiler ...
@@ -103,7 +106,7 @@ ExclusiveArch: %ix86
 %define crossbuild 1
 %define accelerator_crossbuild 1
 # where to find the libs at runtime
-%define newrpath /emul/ia32-linux/lib:/emul/ia32-linux/usr/lib
+%define newrpath /emul/ia32-linux/%{_lib}:/emul/ia32-linux/usr/%{_lib}
 %define _build_name_fmt    %%{ARCH}/%%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.dontuse.rpm
 %endif
 # end special accel
@@ -111,8 +114,9 @@ ExclusiveArch: %ix86
 # /\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\
 # end crossbuild / accelerator section
 
-%global gcc_version 4.6
+%global gcc_version 4.6.4
 %global gcc_release 2013.05
+%global release_prefix %{gcc_release}
 %global _unpackaged_files_terminate_build 0
 %ifarch %{arm}
 %global build_cloog 0
@@ -123,7 +127,7 @@ ExclusiveArch: %ix86
 %global build_cloog 1
 %endif
 %endif
-%global multilib_64_archs x86_64
+#global multilib_64_archs x86_64
 %ifarch x86_64
 %global multilib_32_arch i686
 %endif
@@ -131,11 +135,10 @@ ExclusiveArch: %ix86
 Summary: Various compilers (C, C++, Objective-C, Java, ...)
 Version: %{gcc_version}
 Release: %{gcc_release}
-VCS:     toolchains/gcc#submit/master/20131126.022252-0-ga6b8565e99e42d6caee61b5015810d8b78c511bf
 License: GPLv3+, GPLv3+ with exceptions and GPLv2+ with exceptions
 Group: Development/Languages
 URL: http://gcc.gnu.org
-Source0: gcc-linaro-%{version}-%{gcc_release}.tar.xz
+Source0: gcc-linaro-4.6-%{gcc_release}.tar.xz
 Source1: libgcc_post_upgrade.c
 Source100: gcc-rpmlintrc
 Source200: baselibs.conf
@@ -167,6 +170,7 @@ AutoReq: true
 %endif
 
 Patch41: libgcc_post_upgrade.c.arm.patch
+Patch1000: gcc_arm_hard_float_dynamic_linker_revert.patch
 
 #We need -gnueabi indicator for ARM
 %ifnarch %{arm}
@@ -314,7 +318,8 @@ This is one set of libraries which support 64bit multilib on top of
 32bit enviroment from compiler side.
 
 %prep
-%setup -q -n gcc-linaro-%{version}-%{gcc_release}
+%setup -q -n gcc-linaro-4.6-%{gcc_release}
+%patch1000 -p1
 
 echo '%{version}' >gcc/BASE-VER
 
@@ -365,12 +370,12 @@ export PATH=/opt/cross/bin:$PATH
 export OPT_FLAGS=`echo "$OPT_FLAGS" | sed -e "s#\-march=.*##g"`
 %if %{accelerator_crossbuild}
 # adding -rpath to the special crosscompiler
-export OPT_FLAGS="$OPT_FLAGS -Wl,-rpath,/emul/ia32-linux/usr/lib:/emul/ia32-linux/lib:/usr/lib:/lib"
+export OPT_FLAGS="$OPT_FLAGS -Wl,-rpath,/emul/ia32-linux/usr/%{_lib}:/emul/ia32-linux/%{_lib}:/usr/%{_lib}:/%{_lib}:/usr/lib:/lib"
 %endif
 %endif
 
 CC="$CC" CFLAGS="$OPT_FLAGS" CXXFLAGS="`echo $OPT_FLAGS | sed 's/ -Wall / /g'`" XCFLAGS="$OPT_FLAGS" TCFLAGS="$OPT_FLAGS" \
-	../configure --prefix=%{_prefix} --mandir=%{_mandir} --infodir=%{_infodir} \
+	../configure --prefix=%{_prefix} --mandir=%{_mandir} --infodir=%{_infodir} --libexecdir=%{_libexecdir} \
 	--enable-shared --enable-linker-build-id \
 %ifarch %{arm}
 	--enable-checking=release \
@@ -385,6 +390,7 @@ CC="$CC" CFLAGS="$OPT_FLAGS" CXXFLAGS="`echo $OPT_FLAGS | sed 's/ -Wall / /g'`" 
 %else
 	--enable-checking=release \
 	--enable-multiarch \
+	--disable-multilib \
 %endif
 %endif
 %if %{build_cloog}
@@ -445,15 +451,6 @@ cd ..
 %install
 rm -fr %{buildroot}
 
-mkdir -p %{buildroot}/usr/share/license
-cp gcc/COPYING %{buildroot}/usr/share/license/gcc
-cp gcc/COPYING %{buildroot}/usr/share/license/cpp
-cp gcc/COPYING %{buildroot}/usr/share/license/libgcc
-cp gcc/COPYING %{buildroot}/usr/share/license/gcc-c++
-cp gcc/COPYING %{buildroot}/usr/share/license/libstdc++
-cp gcc/COPYING %{buildroot}/usr/share/license/libgomp
-cp gcc/COPYING %{buildroot}/usr/share/license/libmudflap
-
 cd obj-%{gcc_target_platform}
 
 %if !%{crossbuild}
@@ -482,7 +479,7 @@ make DESTDIR=%{buildroot} install
 # \/\/\/
 
 FULLPATH=%{buildroot}%{_prefix}/lib/gcc/%{gcc_target_platform}/%{gcc_version}
-FULLEPATH=%{buildroot}%{_prefix}/libexec/gcc/%{gcc_target_platform}/%{gcc_version}
+FULLEPATH=%{buildroot}%{_libexecdir}/gcc/%{gcc_target_platform}/%{gcc_version}
 
 ln -sf gcc %{buildroot}%{_prefix}/bin/cc
 mkdir -p %{buildroot}/lib
@@ -556,11 +553,11 @@ ln -sf /lib/libgcc_s.so.1 $FULLPATH/32/libgcc_s.so
 
 mv -f %{buildroot}%{_prefix}/%{_lib}/libgomp.spec $FULLPATH/
 
-mkdir -p %{buildroot}%{_prefix}/libexec/getconf
+mkdir -p %{buildroot}%{_libexecdir}/getconf
 if gcc/xgcc -B gcc/ -E -dD -xc /dev/null | grep __LONG_MAX__.*2147483647; then
-  ln -sf POSIX_V6_ILP32_OFF32 %{buildroot}%{_prefix}/libexec/getconf/default
+  ln -sf POSIX_V6_ILP32_OFF32 %{buildroot}%{_libexecdir}/getconf/default
 else
-  ln -sf POSIX_V6_LP64_OFF64 %{buildroot}%{_prefix}/libexec/getconf/default
+  ln -sf POSIX_V6_LP64_OFF64 %{buildroot}%{_libexecdir}/getconf/default
 fi
 
 
@@ -652,8 +649,6 @@ patch %{SOURCE1} < %{PATCH41}
 gcc -static -Os %{SOURCE1} -o %{buildroot}%{_prefix}/sbin/libgcc_post_upgrade
 strip %{buildroot}%{_prefix}/sbin/libgcc_post_upgrade
 
-cd ..
-
 # Remove binaries we will not be including, so that they don't end up in
 # gcc-debuginfo
 rm -f %{buildroot}%{_prefix}/%{_lib}/{libffi*,libiberty.a}
@@ -684,10 +679,24 @@ rm -f %{buildroot}%{_prefix}/lib/lib*.a
 rm -rRf %buildroot/%{_prefix}/lib/libiberty.a
 rm -rRf %buildroot/%{_prefix}/share
 #set +x
+%else
+# Fixed x86 dependencies
+sed "s/@X86@/%{!?x64:x86}%{?x64}/g" -i %{_sourcedir}/baselibs.conf
 %endif
 # /\/\/\
 # cross
 %endif
+
+cd ..
+
+mkdir -p %{buildroot}%{_datadir}/license
+cp gcc/COPYING %{buildroot}%{_datadir}/license/gcc
+cp gcc/COPYING %{buildroot}%{_datadir}/license/cpp
+cp gcc/COPYING %{buildroot}%{_datadir}/license/libgcc
+cp gcc/COPYING %{buildroot}%{_datadir}/license/gcc-c++
+cp gcc/COPYING %{buildroot}%{_datadir}/license/libstdc++
+cp gcc/COPYING %{buildroot}%{_datadir}/license/libgomp
+cp gcc/COPYING %{buildroot}%{_datadir}/license/libmudflap
 
 %if !%{crossbuild}
 # checking and split packaging for native ...
@@ -750,17 +759,17 @@ rm -rf %{buildroot}
 %dir %{_prefix}/lib/gcc
 %dir %{_prefix}/lib/gcc/%{gcc_target_platform}
 %dir %{_prefix}/lib/gcc/%{gcc_target_platform}/%{gcc_version}
-%dir %{_prefix}/libexec/gcc
-%dir %{_prefix}/libexec/gcc/%{gcc_target_platform}
-%dir %{_prefix}/libexec/gcc/%{gcc_target_platform}/%{gcc_version}
+%dir %{_libexecdir}/gcc
+%dir %{_libexecdir}/gcc/%{gcc_target_platform}
+%dir %{_libexecdir}/gcc/%{gcc_target_platform}/%{gcc_version}
 %dir %{_prefix}/lib/gcc/%{gcc_target_platform}/%{gcc_version}/include
 
 # Shouldn't include all files under this fold, split to diff pkgs
-#%{_prefix}/libexec/gcc/%{gcc_target_platform}/%{gcc_version}/*
-%{_prefix}/libexec/gcc/%{gcc_target_platform}/%{gcc_version}/lto1
-%{_prefix}/libexec/gcc/%{gcc_target_platform}/%{gcc_version}/lto-wrapper
-%{_prefix}/libexec/gcc/%{gcc_target_platform}/%{gcc_version}/collect2
-%{_prefix}/libexec/gcc/%{gcc_target_platform}/%{gcc_version}/liblto_plugin.*
+#%{_libexecdir}/gcc/%{gcc_target_platform}/%{gcc_version}/*
+%{_libexecdir}/gcc/%{gcc_target_platform}/%{gcc_version}/lto1
+%{_libexecdir}/gcc/%{gcc_target_platform}/%{gcc_version}/lto-wrapper
+%{_libexecdir}/gcc/%{gcc_target_platform}/%{gcc_version}/collect2
+%{_libexecdir}/gcc/%{gcc_target_platform}/%{gcc_version}/liblto_plugin.*
 
 %dir %{_prefix}/lib/gcc/%{gcc_target_platform}/%{gcc_version}/plugin
 %dir %{_prefix}/lib/gcc/%{gcc_target_platform}/%{gcc_version}/plugin/include
@@ -809,7 +818,10 @@ rm -rf %{buildroot}
 
 %dir %{_prefix}/lib/gcc/%{gcc_target_platform}/%{gcc_version}/include-fixed
 %{_prefix}/lib/gcc/%{gcc_target_platform}/%{gcc_version}/include-fixed/README
+%ifnarch %{arm}
+#kernel 3.4 upstream removed a.out.h for arm arch
 %{_prefix}/lib/gcc/%{gcc_target_platform}/%{gcc_version}/include-fixed/linux/a.out.h
+%endif
 # For ARM port
 %ifarch %{arm}
 %{_prefix}/lib/gcc/%{gcc_target_platform}/%{gcc_version}/include/arm_neon.h
@@ -844,10 +856,10 @@ rm -rf %{buildroot}
 %{_prefix}/lib/gcc/%{gcc_target_platform}/%{gcc_version}/32/libmudflap.so
 %{_prefix}/lib/gcc/%{gcc_target_platform}/%{gcc_version}/32/libmudflapth.so
 %endif
-%dir %{_prefix}/libexec/getconf
-%{_prefix}/libexec/getconf/default
+%dir %{_libexecdir}/getconf
+%{_libexecdir}/getconf/default
 %doc gcc/README*  gcc/COPYING*
-/usr/share/license/gcc
+%{_datadir}/license/gcc
 %manifest gcc.manifest
 
 %files -n cpp
@@ -855,11 +867,11 @@ rm -rf %{buildroot}
 /lib/cpp
 %{_prefix}/bin/cpp
 %{_mandir}/man1/cpp.1*
-%dir %{_prefix}/libexec/gcc
-%dir %{_prefix}/libexec/gcc/%{gcc_target_platform}
-%dir %{_prefix}/libexec/gcc/%{gcc_target_platform}/%{gcc_version}
-%{_prefix}/libexec/gcc/%{gcc_target_platform}/%{gcc_version}/cc1
-/usr/share/license/cpp
+%dir %{_libexecdir}/gcc
+%dir %{_libexecdir}/gcc/%{gcc_target_platform}
+%dir %{_libexecdir}/gcc/%{gcc_target_platform}/%{gcc_version}
+%{_libexecdir}/gcc/%{gcc_target_platform}/%{gcc_version}/cc1
+%{_datadir}/license/cpp
 %manifest cpp.manifest
 
 %files -n libgcc
@@ -869,7 +881,7 @@ rm -rf %{buildroot}
 /%{_libdir}/libgcc_s.*
 %{_prefix}/sbin/libgcc_post_upgrade
 %doc gcc/COPYING.LIB
-/usr/share/license/libgcc
+%{_datadir}/license/libgcc
 %manifest libgcc.manifest
 
 # For ARM port
@@ -888,10 +900,10 @@ rm -rf %{buildroot}
 %dir %{_prefix}/lib/gcc
 %dir %{_prefix}/lib/gcc/%{gcc_target_platform}
 %dir %{_prefix}/lib/gcc/%{gcc_target_platform}/%{gcc_version}
-%dir %{_prefix}/libexec/gcc
-%dir %{_prefix}/libexec/gcc/%{gcc_target_platform}
-%dir %{_prefix}/libexec/gcc/%{gcc_target_platform}/%{gcc_version}
-%{_prefix}/libexec/gcc/%{gcc_target_platform}/%{gcc_version}/cc1plus
+%dir %{_libexecdir}/gcc
+%dir %{_libexecdir}/gcc/%{gcc_target_platform}
+%dir %{_libexecdir}/gcc/%{gcc_target_platform}/%{gcc_version}
+%{_libexecdir}/gcc/%{gcc_target_platform}/%{gcc_version}/cc1plus
 %ifarch %{multilib_64_archs}
 %dir %{_prefix}/lib/gcc/%{gcc_target_platform}/%{gcc_version}/32
 %{_prefix}/lib/gcc/%{gcc_target_platform}/%{gcc_version}/32/libstdc++.so
@@ -902,7 +914,7 @@ rm -rf %{buildroot}
 %{_prefix}/lib/gcc/%{gcc_target_platform}/%{gcc_version}/libstdc++.so
 %{_prefix}/lib/gcc/%{gcc_target_platform}/%{gcc_version}/libsupc++.a
 %endif
-/usr/share/license/gcc-c++
+%{_datadir}/license/gcc-c++
 %manifest gcc-c++.manifest
 
 %files -n libstdc++
@@ -915,7 +927,7 @@ rm -rf %{buildroot}
 %{_datadir}/gdb/auto-load/%{_prefix}/%{_lib}/libstdc*gdb.py*
 %dir %{_prefix}/share/gcc-%{gcc_version}
 %{_prefix}/share/gcc-%{gcc_version}/python
-/usr/share/license/libstdc++
+%{_datadir}/license/libstdc++
 %manifest libstdc++.manifest
 
 %files -n libstdc++-devel
@@ -937,14 +949,14 @@ rm -rf %{buildroot}
 %files -n libgomp
 %defattr(-,root,root,-)
 %{_prefix}/%{_lib}/libgomp.*
-/usr/share/license/libgomp
+%{_datadir}/license/libgomp
 %manifest libgomp.manifest
 
 %files -n libmudflap
 %defattr(-,root,root,-)
 %{_prefix}/%{_lib}/libmudflap.*
 %{_prefix}/%{_lib}/libmudflapth.*
-/usr/share/license/libmudflap
+%{_datadir}/license/libmudflap
 %manifest libmudflap.manifest
 
 %files -n libmudflap-devel
@@ -965,7 +977,6 @@ rm -rf %{buildroot}
 # cross
 # \/\/\/
 %files
-/usr/share/license/gcc
 %manifest gcc.manifest
 %defattr(-,root,root,-)
 %{_prefix}
