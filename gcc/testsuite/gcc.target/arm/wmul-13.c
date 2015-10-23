@@ -1,5 +1,6 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -march=armv7-a" } */
+/* { dg-options "-O2" } */
+/* { dg-require-effective-target arm_dsp } */
 
 long long
 foo (int *a, int *b)

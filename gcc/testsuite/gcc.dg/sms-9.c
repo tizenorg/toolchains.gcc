@@ -1,5 +1,5 @@
 /* { dg-do run } */
-/* { dg-options "-O2 -fmodulo-sched -fno-auto-inc-dec -O2 -fmodulo-sched-allow-regmoves" } */
+/* { dg-options "-O2 -fmodulo-sched -fmodulo-sched-allow-regmoves" } */
 
 #include <stdlib.h>
 #include <stdarg.h>
@@ -14,9 +14,9 @@ extern void *memset (void *s, int c, __SIZE_TYPE__ n);
 
 
 __attribute__ ((noinline))
-     int
-     df_reorganize_refs_by_reg_by_insn (struct df_ref_info *ref_info,
-					int num, unsigned int start)
+int
+df_reorganize_refs_by_reg_by_insn (struct df_ref_info *ref_info,
+			           int num, unsigned int start)
 {
   unsigned int m = num;
   unsigned int offset = 77;

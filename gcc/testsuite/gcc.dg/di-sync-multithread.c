@@ -1,14 +1,18 @@
 /* { dg-do run } */
-/* { dg-require-effective-target sync_longlong } */
+/* { dg-require-effective-target sync_long_long_runtime } */
 /* { dg-require-effective-target pthread_h } */
 /* { dg-require-effective-target pthread } */
 /* { dg-options "-pthread -std=gnu99" } */
+/* { dg-additional-options "-march=pentium" { target { { i?86-*-* x86_64-*-* } && ia32 } } } */
 
 /* test of long long atomic ops performed in parallel in 3 pthreads
    david.gilbert@linaro.org */
 
 #include <pthread.h>
 #include <unistd.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 /*#define DEBUGIT 1 */
 
@@ -62,8 +66,8 @@ worker (void* data)
       /* OK, lets try and do some stuff to the workspace - by the end
          of the main loop our area should be the same as it is now - i.e. 0.  */
 
-      /* Push the arithmetic section upto 128 - one of the threads will
-         case this to carry accross the 32bit boundary.  */
+      /* Push the arithmetic section up to 128 - one of the threads will
+         case this to carry across the 32bit boundary.  */
       for (tmp2 = 0; tmp2 < 64; tmp2++)
 	{
 	  /* Add 2 using the two different adds.  */
@@ -174,7 +178,11 @@ main ()
 	t, err);
   };
 
+#ifdef _WIN32
+  Sleep (5000);
+#else
   sleep (5);
+#endif
 
   /* Stop please.  */
   __sync_lock_test_and_set (&doquit, 1ll);

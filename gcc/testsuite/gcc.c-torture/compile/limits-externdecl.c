@@ -1,3 +1,4 @@
+/* { dg-require-effective-target int32plus } */
 /* Inspired by the test case for PR middle-end/52640.  */
 
 typedef struct
@@ -53,4 +54,3 @@ REFERENCE references[] = {
   LIM5 (X)
   0
 };
-

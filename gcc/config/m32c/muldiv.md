@@ -1,6 +1,5 @@
 ;; Machine Descriptions for R8C/M16C/M32C
-;; Copyright (C) 2005, 2007
-;; Free Software Foundation, Inc.
+;; Copyright (C) 2005-2014 Free Software Foundation, Inc.
 ;; Contributed by Red Hat.
 ;;
 ;; This file is part of GCC.
@@ -108,7 +107,7 @@
 (define_insn "umulhisi3_c"
   [(set (match_operand:SI 0 "ra_operand" "=Rsi")
         (mult:SI (zero_extend:SI (match_operand:HI 1 "mra_operand" "%0"))
-                 (match_operand 2 "m32c_const_u16_operand" "i")))]
+                 (match_operand 2 "immediate_operand" "i")))]
   ""
   "mulu.w\t%u2,%1"
   [(set_attr "flags" "o")]

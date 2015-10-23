@@ -10,17 +10,17 @@ unsigned short Y[N];
 unsigned int result[N];
 
 /* unsigned short->unsigned int widening-mult.  */
-__attribute__ ((noinline, noclone)) void 
+__attribute__ ((noinline, noclone)) void
 foo (void)
 {
-  result[0] = (unsigned int)(X[0] * Y[0]);
-  result[1] = (unsigned int)(X[1] * Y[1]);
-  result[2] = (unsigned int)(X[2] * Y[2]);
-  result[3] = (unsigned int)(X[3] * Y[3]);
-  result[4] = (unsigned int)(X[4] * Y[4]);
-  result[5] = (unsigned int)(X[5] * Y[5]);
-  result[6] = (unsigned int)(X[6] * Y[6]);
-  result[7] = (unsigned int)(X[7] * Y[7]);
+  result[0] = (unsigned int) (X[0] * Y[0]);
+  result[1] = (unsigned int) (X[1] * Y[1]);
+  result[2] = (unsigned int) (X[2] * Y[2]);
+  result[3] = (unsigned int) (X[3] * Y[3]);
+  result[4] = (unsigned int) (X[4] * Y[4]);
+  result[5] = (unsigned int) (X[5] * Y[5]);
+  result[6] = (unsigned int) (X[6] * Y[6]);
+  result[7] = (unsigned int) (X[7] * Y[7]);
 }
 
 int main (void)
@@ -52,4 +52,3 @@ int main (void)
 /* { dg-final { scan-tree-dump-times "vect_recog_widen_mult_pattern: detected" 8 "slp" { target vect_widen_mult_hi_to_si_pattern } } } */
 /* { dg-final { scan-tree-dump-times "pattern recognized" 8 "slp" { target vect_widen_mult_hi_to_si_pattern } } } */
 /* { dg-final { cleanup-tree-dump "slp" } } */
-

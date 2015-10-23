@@ -1,7 +1,6 @@
 // Support for concurrent programing -*- C++ -*-
 
-// Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2012
-// Free Software Foundation, Inc.
+// Copyright (C) 2003-2014 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -100,62 +99,30 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // Substitute for concurrence_error object in the case of -fno-exceptions.
   inline void
   __throw_concurrence_lock_error()
-  {
-#if __EXCEPTIONS
-    throw __concurrence_lock_error();
-#else
-    __builtin_abort();
-#endif
-  }
+  { _GLIBCXX_THROW_OR_ABORT(__concurrence_lock_error()); }
 
   inline void
   __throw_concurrence_unlock_error()
-  {
-#if __EXCEPTIONS
-    throw __concurrence_unlock_error();
-#else
-    __builtin_abort();
-#endif
-  }
+  { _GLIBCXX_THROW_OR_ABORT(__concurrence_unlock_error()); }
 
 #ifdef __GTHREAD_HAS_COND
   inline void
   __throw_concurrence_broadcast_error()
-  {
-#if __EXCEPTIONS
-    throw __concurrence_broadcast_error();
-#else
-    __builtin_abort();
-#endif
-  }
+  { _GLIBCXX_THROW_OR_ABORT(__concurrence_broadcast_error()); }
 
   inline void
   __throw_concurrence_wait_error()
-  {
-#if __EXCEPTIONS
-    throw __concurrence_wait_error();
-#else
-    __builtin_abort();
-#endif
-  }
+  { _GLIBCXX_THROW_OR_ABORT(__concurrence_wait_error()); }
 #endif
  
-  template<typename _Tp>
-    static inline void
-    __copy_gthr_type(_Tp& __to, const _Tp& __from)
-    {
-#if defined __GXX_EXPERIMENTAL_CXX0X__ \
-  && defined _GLIBCXX_GTHREADS_NO_COPY_ASSIGN_IN_CXX11
-      __builtin_memcpy(&__to, &__from, sizeof(__to));
-#else
-      __to = __from;
-#endif
-    }
-
   class __mutex 
   {
   private:
+#if __GTHREADS && defined __GTHREAD_MUTEX_INIT
+    __gthread_mutex_t _M_mutex = __GTHREAD_MUTEX_INIT;
+#else
     __gthread_mutex_t _M_mutex;
+#endif
 
     __mutex(const __mutex&);
     __mutex& operator=(const __mutex&);
@@ -163,17 +130,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   public:
     __mutex() 
     { 
-#if __GTHREADS
+#if __GTHREADS && ! defined __GTHREAD_MUTEX_INIT
       if (__gthread_active_p())
-	{
-#if defined __GTHREAD_MUTEX_INIT
-	  __gthread_mutex_t __tmp = __GTHREAD_MUTEX_INIT;
-	  __copy_gthr_type(_M_mutex, __tmp);
-#else
-	  __GTHREAD_MUTEX_INIT_FUNCTION(&_M_mutex); 
+	__GTHREAD_MUTEX_INIT_FUNCTION(&_M_mutex);
 #endif
-	}
-#endif 
     }
 
 #if __GTHREADS && ! defined __GTHREAD_MUTEX_INIT
@@ -213,7 +173,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   class __recursive_mutex 
   {
   private:
+#if __GTHREADS && defined __GTHREAD_RECURSIVE_MUTEX_INIT
+    __gthread_recursive_mutex_t _M_mutex = __GTHREAD_RECURSIVE_MUTEX_INIT;
+#else
     __gthread_recursive_mutex_t _M_mutex;
+#endif
 
     __recursive_mutex(const __recursive_mutex&);
     __recursive_mutex& operator=(const __recursive_mutex&);
@@ -221,24 +185,17 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   public:
     __recursive_mutex() 
     { 
-#if __GTHREADS
+#if __GTHREADS && ! defined __GTHREAD_RECURSIVE_MUTEX_INIT
       if (__gthread_active_p())
-	{
-#if defined __GTHREAD_RECURSIVE_MUTEX_INIT
-	  __gthread_recursive_mutex_t __tmp = __GTHREAD_RECURSIVE_MUTEX_INIT;
-	  __copy_gthr_type(_M_mutex, __tmp);
-#else
-	  __GTHREAD_RECURSIVE_MUTEX_INIT_FUNCTION(&_M_mutex); 
+	__GTHREAD_RECURSIVE_MUTEX_INIT_FUNCTION(&_M_mutex);
 #endif
-	}
-#endif 
     }
 
 #if __GTHREADS && ! defined __GTHREAD_RECURSIVE_MUTEX_INIT
     ~__recursive_mutex()
     {
       if (__gthread_active_p())
-	_S_destroy(&_M_mutex);
+	__gthread_recursive_mutex_destroy(&_M_mutex);
     }
 #endif
 
@@ -266,43 +223,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     __gthread_recursive_mutex_t* gthread_recursive_mutex(void)
     { return &_M_mutex; }
-
-#if __GTHREADS && ! defined __GTHREAD_RECURSIVE_MUTEX_INIT
-    // FIXME: gthreads doesn't define __gthread_recursive_mutex_destroy
-    // so we need to obtain a __gthread_mutex_t to destroy
-  private:
-    template<typename _Mx, typename _Rm>
-      static void
-      _S_destroy_win32(_Mx* __mx, _Rm const* __rmx)
-      {
-        __mx->counter = __rmx->counter;
-        __mx->sema = __rmx->sema;
-        __gthread_mutex_destroy(__mx);
-      }
-
-    // matches a gthr-win32.h recursive mutex
-    template<typename _Rm>
-      static typename __enable_if<(bool)sizeof(&_Rm::sema), void>::__type
-      _S_destroy(_Rm* __mx)
-      {
-        __gthread_mutex_t __tmp;
-        _S_destroy_win32(&__tmp, __mx);
-      }
-
-    // matches a recursive mutex with a member 'actual'
-    template<typename _Rm>
-      static typename __enable_if<(bool)sizeof(&_Rm::actual), void>::__type
-      _S_destroy(_Rm* __mx)
-      { __gthread_mutex_destroy(&__mx->actual); }
-
-    // matches when there's only one mutex type
-    template<typename _Rm>
-      static typename
-      __enable_if<std::__are_same<_Rm, __gthread_mutex_t>::__value,
-        void>::__type
-      _S_destroy(_Rm* __mx)
-      { __gthread_mutex_destroy(__mx); }
-#endif
   };
 
   /// Scoped lock idiom.
@@ -331,7 +251,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   class __cond
   {
   private:
+#if __GTHREADS && defined __GTHREAD_COND_INIT
+    __gthread_cond_t _M_cond = __GTHREAD_COND_INIT;
+#else
     __gthread_cond_t _M_cond;
+#endif
 
     __cond(const __cond&);
     __cond& operator=(const __cond&);
@@ -339,17 +263,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   public:
     __cond() 
     { 
-#if __GTHREADS
+#if __GTHREADS && ! defined __GTHREAD_COND_INIT
       if (__gthread_active_p())
-	{
-#if defined __GTHREAD_COND_INIT
-	  __gthread_cond_t __tmp = __GTHREAD_COND_INIT;
-	  __copy_gthr_type(_M_cond, __tmp);
-#else
-	  __GTHREAD_COND_INIT_FUNCTION(&_M_cond);
+	__GTHREAD_COND_INIT_FUNCTION(&_M_cond);
 #endif
-	}
-#endif 
     }
 
 #if __GTHREADS && ! defined __GTHREAD_COND_INIT

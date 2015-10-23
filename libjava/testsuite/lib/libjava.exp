@@ -1,4 +1,5 @@
-# Copyright (C) 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2006, 2007 Free Software Foundation
+# Copyright (C) 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2006, 2007, 2011
+# Free Software Foundation
 
 proc load_gcc_lib { filename } {
     global srcdir
@@ -6,6 +7,7 @@ proc load_gcc_lib { filename } {
 }
 
 load_lib libgloss.exp
+load_lib dg.exp
 load_gcc_lib target-libpath.exp
 
 # GCJ_UNDER_TEST is the compiler under test.
@@ -175,7 +177,7 @@ proc libjava_init { args } {
 
     set text [eval exec "$GCJ_UNDER_TEST -B$specdir -v 2>@ stdout"]
     regexp " version \[^\n\r\]*" $text version
-    set libjava_version [lindex $version 1]
+    set libjava_version 4.8
 
     verbose "version: $libjava_version"
 

@@ -1,7 +1,7 @@
-/* Copyright (C) 2002-2003, 2005, 2007, 2009 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2014 Free Software Foundation, Inc.
    Contributed by Andy Vaught and Paul Brook <paul@nowt.org>
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -85,30 +85,61 @@ store_exe_path (const char * argv0)
 #define DIR_SEPARATOR '/'
 #endif
 
-  char buf[PATH_MAX], *cwd, *path;
+  char buf[PATH_MAX], *path;
+  const char *cwd;
 
   /* This can only happen if store_exe_path is called multiple times.  */
   if (please_free_exe_path_when_done)
     free ((char *) exe_path);
 
-  /* On the simulator argv is not set.  */
-  if (argv0 == NULL || argv0[0] == '/')
+  /* Reading the /proc/self/exe symlink is Linux-specific(?), but if
+     it works it gives the correct answer.  */
+#ifdef HAVE_READLINK
+  int len;
+  if ((len = readlink ("/proc/self/exe", buf, sizeof (buf) - 1)) != -1)
+    {
+      buf[len] = '\0';
+      exe_path = strdup (buf);
+      please_free_exe_path_when_done = 1;
+      return;
+    }
+#endif
+
+  /* If the path is absolute or on a simulator where argv is not set.  */
+#ifdef __MINGW32__
+  if (argv0 == NULL
+      || ('A' <= argv0[0] && argv0[0] <= 'Z' && argv0[1] == ':')
+      || ('a' <= argv0[0] && argv0[0] <= 'z' && argv0[1] == ':')
+      || (argv0[0] == '/' && argv0[1] == '/')
+      || (argv0[0] == '\\' && argv0[1] == '\\'))
+#else
+  if (argv0 == NULL || argv0[0] == DIR_SEPARATOR)
+#endif
     {
       exe_path = argv0;
       please_free_exe_path_when_done = 0;
       return;
     }
 
-  memset (buf, 0, sizeof (buf));
 #ifdef HAVE_GETCWD
   cwd = getcwd (buf, sizeof (buf));
 #else
-  cwd = "";
+  cwd = NULL;
 #endif
 
-  /* exe_path will be cwd + "/" + argv[0] + "\0" */
-  path = malloc (strlen (cwd) + 1 + strlen (argv0) + 1);
-  sprintf (path, "%s%c%s", cwd, DIR_SEPARATOR, argv0);
+  if (!cwd)
+    {
+      exe_path = argv0;
+      please_free_exe_path_when_done = 0;
+      return;
+    }
+
+  /* exe_path will be cwd + "/" + argv[0] + "\0".  This will not work
+     if the executable is not in the cwd, but at this point we're out
+     of better ideas.  */
+  size_t pathlen = strlen (cwd) + 1 + strlen (argv0) + 1;
+  path = malloc (pathlen);
+  snprintf (path, pathlen, "%s%c%s", cwd, DIR_SEPARATOR, argv0);
   exe_path = path;
   please_free_exe_path_when_done = 1;
 }
@@ -119,6 +150,54 @@ char *
 full_exe_path (void)
 {
   return (char *) exe_path;
+}
+
+
+#ifndef HAVE_STRTOK_R
+static char*
+gfstrtok_r (char *str, const char *delim, 
+	    char **saveptr __attribute__ ((unused)))
+{
+  return strtok (str, delim);
+}
+#define strtok_r gfstrtok_r
+#endif
+
+char *addr2line_path;
+
+/* Find addr2line and store the path.  */
+
+void
+find_addr2line (void)
+{
+#ifdef HAVE_ACCESS
+#define A2L_LEN 11
+  char *path = secure_getenv ("PATH");
+  if (!path)
+    return;
+  char *tp = strdup (path);
+  if (!tp)
+    return;
+  size_t n = strlen (path);
+  char *ap = xmalloc (n + A2L_LEN);
+  char *saveptr;
+  for (char *str = tp;; str = NULL)
+    {
+      char *token = strtok_r (str, ":", &saveptr);
+      if (!token)
+	break;
+      size_t toklen = strlen (token);
+      memcpy (ap, token, toklen);
+      memcpy (ap + toklen, "/addr2line", A2L_LEN);
+      if (access (ap, R_OK|X_OK) == 0)
+	{
+	  addr2line_path = strdup (ap);
+	  break;
+	}
+    }
+  free (tp);
+  free (ap);
+#endif
 }
 
 
@@ -168,6 +247,9 @@ init (void)
   /* if (argc > 1 && strcmp(argv[1], "--resume") == 0) resume();  */
 #endif
 
+  if (options.backtrace == 1)
+    find_addr2line ();
+
   random_seed_i4 (NULL, NULL, NULL);
 }
 
@@ -181,4 +263,6 @@ cleanup (void)
   
   if (please_free_exe_path_when_done)
     free ((char *) exe_path);
+
+  free (addr2line_path);
 }

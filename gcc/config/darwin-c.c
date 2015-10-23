@@ -1,6 +1,5 @@
 /* Darwin support needed only by C/C++ frontends.
-   Copyright (C) 2001, 2003, 2004, 2005, 2007, 2008, 2010
-   Free Software Foundation, Inc.
+   Copyright (C) 2001-2014 Free Software Foundation, Inc.
    Contributed by Apple Computer Inc.
 
 This file is part of GCC.
@@ -25,6 +24,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm.h"
 #include "cpplib.h"
 #include "tree.h"
+#include "target.h"
 #include "incpath.h"
 #include "c-family/c-common.h"
 #include "c-family/c-pragma.h"
@@ -34,8 +34,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm_p.h"
 #include "cppdefault.h"
 #include "prefix.h"
-#include "target.h"
-#include "target-def.h"
+#include "c-family/c-target.h"
+#include "c-family/c-target-def.h"
+#include "cgraph.h"
+#include "../../libcpp/internal.h"
 
 /* Pragmas.  */
 
@@ -265,7 +267,7 @@ static struct framework_header framework_header_dirs[] = {
 static char *
 framework_construct_pathname (const char *fname, cpp_dir *dir)
 {
-  char *buf;
+  const char *buf;
   size_t fname_len, frname_len;
   cpp_dir *fast_dir;
   char *frname;
@@ -342,7 +344,7 @@ find_subframework_file (const char *fname, const char *pname)
 {
   char *sfrname;
   const char *dot_framework = ".framework/";
-  char *bufptr;
+  const char *bufptr;
   int sfrname_len, i, fname_len;
   struct cpp_dir *fast_dir;
   static struct cpp_dir subframe_dir;
@@ -569,21 +571,34 @@ find_subframework_header (cpp_reader *pfile, const char *header, cpp_dir **dirp)
 }
 
 /* Return the value of darwin_macosx_version_min suitable for the
-   __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ macro,
-   so '10.4.2' becomes 1040.  The lowest digit is always zero.
+   __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ macro, so '10.4.2'
+   becomes 1040 and '10.10.0' becomes 101000.  The lowest digit is
+   always zero, as is the second lowest for '10.10.x' and above.
    Print a warning if the version number can't be understood.  */
 static const char *
 version_as_macro (void)
 {
-  static char result[] = "1000";
+  static char result[7] = "1000";
+  int minorDigitIdx;
 
   if (strncmp (darwin_macosx_version_min, "10.", 3) != 0)
     goto fail;
   if (! ISDIGIT (darwin_macosx_version_min[3]))
     goto fail;
-  result[2] = darwin_macosx_version_min[3];
-  if (darwin_macosx_version_min[4] != '\0'
-      && darwin_macosx_version_min[4] != '.')
+
+  minorDigitIdx = 3;
+  result[2] = darwin_macosx_version_min[minorDigitIdx++];
+  if (ISDIGIT (darwin_macosx_version_min[minorDigitIdx]))
+  {
+    /* Starting with OS X 10.10, the macro ends '00' rather than '0',
+       i.e. 10.10.x becomes 101000 rather than 10100.  */
+    result[3] = darwin_macosx_version_min[minorDigitIdx++];
+    result[4] = '0';
+    result[5] = '0';
+    result[6] = '\0';
+  }
+  if (darwin_macosx_version_min[minorDigitIdx] != '\0'
+      && darwin_macosx_version_min[minorDigitIdx] != '.')
     goto fail;
 
   return result;
@@ -630,7 +645,7 @@ darwin_cpp_builtins (cpp_reader *pfile)
       builtin_define ("__weak=");
     }
 
-  if (flag_objc_abi == 2)
+  if (CPP_OPTION (pfile, objc) && flag_objc_abi == 2)
     builtin_define ("__OBJC2__");
 }
 
@@ -660,13 +675,8 @@ handle_c_option (size_t code,
   return true;
 }
 
-#undef TARGET_HANDLE_C_OPTION
-#define TARGET_HANDLE_C_OPTION handle_c_option
-
-struct gcc_targetcm targetcm = TARGETCM_INITIALIZER;
-
 /* Allow ObjC* access to CFStrings.  */
-tree
+static tree
 darwin_objc_construct_string (tree str)
 {
   if (!darwin_constant_cfstrings)
@@ -685,7 +695,7 @@ darwin_objc_construct_string (tree str)
 /* The string ref type is created as CFStringRef by <CFBase.h> therefore, we
    must match for it explicitly, since it's outside the gcc code.  */
 
-bool
+static bool
 darwin_cfstring_ref_p (const_tree strp)
 {
   tree tn;
@@ -701,7 +711,7 @@ darwin_cfstring_ref_p (const_tree strp)
 }
 
 /* At present the behavior of this is undefined and it does nothing.  */
-void
+static void
 darwin_check_cfstring_format_arg (tree ARG_UNUSED (format_arg), 
 				  tree ARG_UNUSED (args_list))
 {
@@ -715,3 +725,64 @@ EXPORTED_CONST format_kind_info darwin_additional_format_types[] = {
     NULL, NULL
   }
 };
+
+
+/* Support routines to dump the class references for NeXT ABI v1, aka
+   32-bits ObjC-2.0, as top-level asms.
+   The following two functions should only be called from
+   objc/objc-next-runtime-abi-01.c.  */
+
+static void
+darwin_objc_declare_unresolved_class_reference (const char *name)
+{
+  const char *lazy_reference = ".lazy_reference\t";
+  const char *hard_reference = ".reference\t";
+  const char *reference = MACHOPIC_INDIRECT ? lazy_reference : hard_reference;
+  size_t len = strlen (reference) + strlen(name) + 2;
+  char *buf = (char *) alloca (len);
+
+  gcc_checking_assert (!strncmp (name, ".objc_class_name_", 17));
+
+  snprintf (buf, len, "%s%s", reference, name);
+  add_asm_node (build_string (strlen (buf), buf));
+}
+
+static void
+darwin_objc_declare_class_definition (const char *name)
+{
+  const char *xname = targetm.strip_name_encoding (name);
+  size_t len = strlen (xname) + 7 + 5;
+  char *buf = (char *) alloca (len);
+
+  gcc_checking_assert (!strncmp (name, ".objc_class_name_", 17)
+		       || !strncmp (name, "*.objc_category_name_", 21));
+
+  /* Mimic default_globalize_label.  */
+  snprintf (buf, len, ".globl\t%s", xname);
+  add_asm_node (build_string (strlen (buf), buf));
+
+  snprintf (buf, len, "%s = 0", xname);
+  add_asm_node (build_string (strlen (buf), buf));
+}
+
+#undef  TARGET_HANDLE_C_OPTION
+#define TARGET_HANDLE_C_OPTION handle_c_option
+
+#undef  TARGET_OBJC_CONSTRUCT_STRING_OBJECT
+#define TARGET_OBJC_CONSTRUCT_STRING_OBJECT darwin_objc_construct_string
+
+#undef  TARGET_OBJC_DECLARE_UNRESOLVED_CLASS_REFERENCE
+#define TARGET_OBJC_DECLARE_UNRESOLVED_CLASS_REFERENCE \
+	darwin_objc_declare_unresolved_class_reference
+
+#undef  TARGET_OBJC_DECLARE_CLASS_DEFINITION
+#define TARGET_OBJC_DECLARE_CLASS_DEFINITION \
+	darwin_objc_declare_class_definition
+
+#undef  TARGET_STRING_OBJECT_REF_TYPE_P
+#define TARGET_STRING_OBJECT_REF_TYPE_P darwin_cfstring_ref_p
+
+#undef TARGET_CHECK_STRING_OBJECT_FORMAT_ARG
+#define TARGET_CHECK_STRING_OBJECT_FORMAT_ARG darwin_check_cfstring_format_arg
+
+struct gcc_targetcm targetcm = TARGETCM_INITIALIZER;
